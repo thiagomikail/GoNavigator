@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+google-generativeai
+chromadb
+pydantic-settings
+pypdf
+requests
+python-dotenv
+python-multipart
