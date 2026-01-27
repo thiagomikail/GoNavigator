@@ -5,6 +5,10 @@ import uuid
 import time
 from typing import Dict
 
+# Configure Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 import requests
 import uvicorn
 from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form
@@ -169,6 +173,7 @@ async def verify_webhook(request: Request):
 async def receive_message(request: Request):
     data = await request.json()
     logger.info(f"RAW PAYLOAD RECEIVED: {json.dumps(data)}")
+    print(f"DEBUG PRINT: RAW PAYLOAD: {json.dumps(data)}")
     
     try:
         entry = data.get('entry', [])[0]
