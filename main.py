@@ -153,7 +153,7 @@ async def upload_trip(
         logger.error(f"Upload failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 async def health_check():
     return "GoNavigator Online. Go to /static/index.html for Admin."
 
