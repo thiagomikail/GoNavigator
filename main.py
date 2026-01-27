@@ -164,9 +164,15 @@ async def verify_webhook(request: Request):
     token = params.get("hub.verify_token")
     challenge = params.get("hub.challenge")
 
+    logger.info(f"WEBHOOK VERIFY: mode={mode} token={token} challenge={challenge}")
+
     if mode and token:
         if mode == "subscribe" and token == WHATSAPP_VERIFY_TOKEN:
-            return PlainTextResponse(content=challenge, status_code=200)
+            logger.info("WEBHOOK VERIFICATION SUCCESSFUL")
+            return PlainTextResponse(content=str(challenge) if challenge else "", status_code=200)
+        else:
+             logger.warning(f"WEBHOOK VERIFICATION FAILED: Expected {WHATSAPP_VERIFY_TOKEN}, got {token}")
+    
     raise HTTPException(status_code=403, detail="Verification failed")
 
 @app.post("/webhook")
