@@ -41,7 +41,10 @@ except Exception as e:
 # Database Setup (Use Google Embeddings to save RAM)
 from chromadb.utils.embedding_functions import GoogleGenerativeAiEmbeddingFunction
 
-google_ef = GoogleGenerativeAiEmbeddingFunction(api_key=GOOGLE_API_KEY)
+google_ef = GoogleGenerativeAiEmbeddingFunction(
+    api_key=GOOGLE_API_KEY,
+    model_name="models/text-embedding-004"
+)
 
 try:
     chroma_client = chromadb.PersistentClient(path="./chroma_db")
