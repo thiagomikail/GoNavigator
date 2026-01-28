@@ -43,7 +43,7 @@ from chromadb.utils.embedding_functions import GoogleGenerativeAiEmbeddingFuncti
 
 google_ef = GoogleGenerativeAiEmbeddingFunction(
     api_key=GOOGLE_API_KEY,
-    model_name="models/text-embedding-004"
+    model_name="models/embedding-001"
 )
 
 try:
