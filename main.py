@@ -38,14 +38,18 @@ except Exception as e:
     print(f"Warning: TTS Client failed to init (Check Credentials): {e}")
     tts_client = None
 
-# Database Setup
+# Database Setup (Use Google Embeddings to save RAM)
+from chromadb.utils.embedding_functions import GoogleGenerativeAiEmbeddingFunction
+
+google_ef = GoogleGenerativeAiEmbeddingFunction(api_key=GOOGLE_API_KEY)
+
 try:
     chroma_client = chromadb.PersistentClient(path="./chroma_db")
 except AttributeError:
     from chromadb.config import Settings
     chroma_client = chromadb.Client(Settings(chroma_db_impl="duckdb+parquet", persist_directory="./chroma_db"))
 
-collection = chroma_client.get_or_create_collection(name="trip_knowledge")
+collection = chroma_client.get_or_create_collection(name="trip_knowledge", embedding_function=google_ef)
 
 # Simple Session Store
 SESSION_FILE = "trip_sessions.json"
@@ -265,8 +269,13 @@ async def receive_message(request: Request):
             if not user_trip_id:
                 if len(msg_body) < 15 and msg_body.isalnum():
                      trip_code = msg_body.upper()
-                     save_session(from_number, trip_code)
-                     send_whatsapp_message(from_number, f"Bem-vindo! Código {trip_code} registrado. Pode perguntar sobre sua viagem.")
+                     # VALIDATE TRIP EXISTS
+                     trips = load_trips()
+                     if trip_code in trips:
+                         save_session(from_number, trip_code)
+                         send_whatsapp_message(from_number, f"Bem-vindo! Código {trip_code} registrado. Pode perguntar sobre sua viagem.")
+                     else:
+                         send_whatsapp_message(from_number, f"Código {trip_code} não encontrado. Por favor, verifique ou contate sua agência.")
                 else:
                     send_whatsapp_message(from_number, "Olá! Sou o assistente virtual da sua agência. Por favor, digite o *Código da Viagem* (ex: PARIS24) para começar.")
             else:
@@ -292,8 +301,12 @@ def handle_qa(user_phone: str, trip_id: str, query: str, base_url: str):
         n_results=3,
         where={"trip_id": trip_id}
     )
+
+    num_docs = len(results['documents'][0]) if results['documents'] else 0
+    logger.info(f"RAG Search: TripID={trip_id} Query='{query}' Found={num_docs} docs")
     
     if not results['documents'][0]:
+        logger.warning(f"RAG Failed: No documents found for {trip_id}")
         send_handoff_message(user_phone, query)
         return
 
@@ -311,8 +324,10 @@ def handle_qa(user_phone: str, trip_id: str, query: str, base_url: str):
     try:
         response = model.generate_content(prompt)
         reply_text = response.text.strip()
+        logger.info(f"LLM Response: {reply_text}")
         
         if "HANDOFF_REQUIRED" in reply_text:
+            logger.info("LLM triggered Handoff.")
             send_handoff_message(user_phone, query)
         else:
             # 1. Send Text
