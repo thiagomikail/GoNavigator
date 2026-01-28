@@ -5,10 +5,6 @@ import uuid
 import time
 from typing import Dict
 
-# Configure Logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 import requests
 import uvicorn
 from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form
@@ -66,6 +62,55 @@ def save_session(phone: str, trip_id: str):
     with open(SESSION_FILE, "w") as f:
         json.dump(sessions, f)
 
+# --- Trip Management ---
+TRIPS_FILE = "trips.json"
+
+def load_trips() -> Dict[str, Dict]:
+    if os.path.exists(TRIPS_FILE):
+        try:
+            with open(TRIPS_FILE, "r") as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+def save_trip(trip_id: str, settings: Dict = None):
+    trips = load_trips()
+    if trip_id not in trips:
+        trips[trip_id] = {
+            "created_at": time.time(),
+            "voice_enabled": True,
+            "ai_enabled": True
+        }
+    if settings:
+        trips[trip_id].update(settings)
+    
+    with open(TRIPS_FILE, "w") as f:
+        json.dump(trips, f, indent=2)
+
+def delete_trip_data(trip_id: str):
+    # 1. Provide trip from trips.json
+    trips = load_trips()
+    if trip_id in trips:
+        del trips[trip_id]
+        with open(TRIPS_FILE, "w") as f:
+             json.dump(trips, f)
+    
+    # 2. Delete from ChromaDB
+    try:
+        collection.delete(where={"trip_id": trip_id})
+    except Exception as e:
+        logger.error(f"Error deleting from Chroma: {e}")
+
+    # 3. Clear from sessions
+    sessions = load_sessions()
+    # Find keys (phones) that have this trip_id
+    phones_to_remove = [phone for phone, tid in sessions.items() if tid == trip_id]
+    for phone in phones_to_remove:
+        del sessions[phone]
+    with open(SESSION_FILE, "w") as f:
+        json.dump(sessions, f)
+
 app = FastAPI()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -102,7 +147,7 @@ def generate_audio(text: str) -> str:
             out.write(response.audio_content)
         return filename
     except Exception as e:
-        logger.error(f"TTS Error: {e}")
+        logger.error(f"TTS Error: {e}", exc_info=True)
         return None
 
 # --- Ingestion Logic ---
@@ -148,10 +193,32 @@ async def upload_trip(
         content = await file.read()
         file_stream = BytesIO(content)
         process_pdf_upload(file_stream, trip_id.upper())
+        save_trip(trip_id.upper()) # Save metadata
         return {"status": "success", "trip_id": trip_id, "message": "Trip created and PDF indexed."}
     except Exception as e:
         logger.error(f"Upload failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# --- Admin API ---
+@app.get("/api/trips")
+async def list_trips(admin_key: str):
+    if admin_key != os.getenv("ADMIN_PASSWORD", "secret123"):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return load_trips()
+
+@app.delete("/api/trips/{trip_id}")
+async def delete_trip(trip_id: str, admin_key: str):
+    if admin_key != os.getenv("ADMIN_PASSWORD", "secret123"):
+         raise HTTPException(status_code=401, detail="Unauthorized")
+    delete_trip_data(trip_id)
+    return {"status": "deleted", "trip_id": trip_id}
+
+@app.post("/api/trips/{trip_id}/settings")
+async def update_trip_settings(trip_id: str, settings: Dict, admin_key: str):
+    if admin_key != os.getenv("ADMIN_PASSWORD", "secret123"):
+         raise HTTPException(status_code=401, detail="Unauthorized")
+    save_trip(trip_id, settings)
+    return {"status": "updated", "trip_id": trip_id, "settings": settings}
 
 @app.api_route("/", methods=["GET", "HEAD"])
 async def health_check():
@@ -179,7 +246,6 @@ async def verify_webhook(request: Request):
 async def receive_message(request: Request):
     data = await request.json()
     logger.info(f"RAW PAYLOAD RECEIVED: {json.dumps(data)}")
-    print(f"DEBUG PRINT: RAW PAYLOAD: {json.dumps(data)}")
     
     try:
         entry = data.get('entry', [])[0]
@@ -213,6 +279,14 @@ async def receive_message(request: Request):
     return {"status": "processed"}
 
 def handle_qa(user_phone: str, trip_id: str, query: str, base_url: str):
+    # 1. Check Trip Settings (AI Enabled?)
+    trips = load_trips()
+    trip_config = trips.get(trip_id, {"ai_enabled": True, "voice_enabled": True})
+    
+    if not trip_config.get("ai_enabled", True):
+        send_whatsapp_message(user_phone, "O assistente virtual está temporariamente desativado para esta viagem.")
+        return
+
     results = collection.query(
         query_texts=[query],
         n_results=3,
@@ -244,15 +318,23 @@ def handle_qa(user_phone: str, trip_id: str, query: str, base_url: str):
             # 1. Send Text
             send_whatsapp_message(user_phone, reply_text)
             
-            # 2. Generate & Send Audio
-            audio_file = generate_audio(reply_text)
-            if audio_file:
-                audio_url = f"{base_url}/static/audio/{audio_file}"
-                logger.info(f"Sending audio: {audio_url}")
-                send_whatsapp_audio(user_phone, audio_url)
+            # 2. Generate & Send Audio (If Voice Enabled)
+            if trip_config.get("voice_enabled", True):
+                if not os.path.exists("static/audio"):
+                    os.makedirs("static/audio")
+                    
+                audio_file = generate_audio(reply_text)
+                if audio_file:
+                    audio_url = f"{base_url}/static/audio/{audio_file}"
+                    logger.info(f"Sending audio: {audio_url}")
+                    send_whatsapp_audio(user_phone, audio_url)
+                else:
+                    logger.warning("Audio generation returned None. Check TTS logic.")
+            else:
+                 logger.info(f"Voice disabled for trip {trip_id}, skipping audio.")
             
     except Exception as e:
-        logger.error(f"LLM/TTS Error: {e}")
+        logger.error(f"LLM/TTS Error: {e}", exc_info=True)
         send_whatsapp_message(user_phone, "Desculpe, tive um erro técnico.")
 
 def send_handoff_message(user_phone: str, query: str):

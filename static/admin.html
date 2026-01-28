@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GoNavigator - Admin Platform</title>
+    <style>
+        :root {
+            --primary: #25D366;
+            /* WhatsApp Green */
+            --dark: #128C7E;
+            --bg: #f0f2f5;
+            --card: #ffffff;
+            --text: #333333;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            color: var(--dark);
+            margin: 0;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .btn:hover {
+            background-color: var(--dark);
+        }
+
+        .btn-danger {
+            background-color: #dc3545;
+        }
+
+        .btn-danger:hover {
+            background-color: #bb2d3b;
+        }
+
+        input,
+        button {
+            font-size: 16px;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #f8f9fa;
+        }
+
+        /* Toggle Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 20px;
+            vertical-align: middle;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 20px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: var(--primary);
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(20px);
+        }
+
+        #login-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="login-modal">
+        <div class="card" style="width: 300px; text-align: center;">
+            <h2>Admin Login</h2>
+            <input type="password" id="admin-pass" placeholder="Enter Admin Password">
+            <button class="btn" onclick="login()">Access Dashboard</button>
+        </div>
+    </div>
+
+    <div class="container hidden" id="dashboard">
+        <header>
+            <h1>GoNavigator Admin</h1>
+            <p>Manage Trips & AI Settings</p>
+        </header>
+
+        <!-- Upload Section -->
+        <div class="card">
+            <h2>✈️ Create New Trip</h2>
+            <p>Upload a PDF itinerary to generate a new trip code.</p>
+            <form id="upload-form" onsubmit="uploadTrip(event)">
+                <input type="text" id="trip-id" placeholder="Trip Code (e.g., PARIS24)" required>
+                <input type="file" id="pdf-file" accept="application/pdf" required>
+                <button type="submit" class="btn">Upload & Create</button>
+            </form>
+            <div id="upload-status" style="margin-top: 10px;"></div>
+        </div>
+
+        <!-- Active Trips Section -->
+        <div class="card">
+            <h2>🌍 Active Trips</h2>
+            <button class="btn" style="background-color: #6c757d; font-size: 14px; margin-bottom: 10px;"
+                onclick="fetchTrips()">Refresh List</button>
+            <table id="trips-table">
+                <thead>
+                    <tr>
+                        <th>Trip Code</th>
+                        <th>Created At</th>
+                        <th>Voice (TTS)</th>
+                        <th>AI Assistant</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Rows injected by JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let ADMIN_KEY = "";
+
+        function login() {
+            const pass = document.getElementById("admin-pass").value;
+            if (pass) {
+                ADMIN_KEY = pass;
+                document.getElementById("login-modal").style.display = "none";
+                document.getElementById("dashboard").classList.remove("hidden");
+                fetchTrips();
+            }
+        }
+
+        async function fetchTrips() {
+            try {
+                const res = await fetch(`/api/trips?admin_key=${ADMIN_KEY}`);
+                if (res.status === 401) { alert("Invalid Password"); location.reload(); return; }
+                const trips = await res.json();
+                renderTable(trips);
+            } catch (e) {
+                console.error("Error fetching trips:", e);
+            }
+        }
+
+        function renderTable(trips) {
+            const tbody = document.querySelector("#trips-table tbody");
+            tbody.innerHTML = "";
+
+            Object.keys(trips).forEach(tripId => {
+                const t = trips[tripId];
+                const date = new Date(t.created_at * 1000).toLocaleString();
+
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                <td><strong>${tripId}</strong></td>
+                <td>${date}</td>
+                <td>
+                    <label class="switch">
+                        <input type="checkbox" ${t.voice_enabled ? 'checked' : ''} 
+                        onchange="toggleSetting('${tripId}', 'voice_enabled', this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </td>
+                <td>
+                    <label class="switch">
+                        <input type="checkbox" ${t.ai_enabled ? 'checked' : ''} 
+                        onchange="toggleSetting('${tripId}', 'ai_enabled', this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </td>
+                <td>
+                    <button class="btn btn-danger" onclick="deleteTrip('${tripId}')">Delete</button>
+                </td>
+            `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function toggleSetting(tripId, setting, value) {
+            const payload = {};
+            payload[setting] = value;
+            try {
+                await fetch(`/api/trips/${tripId}/settings?admin_key=${ADMIN_KEY}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+                console.log(`Updated ${tripId} ${setting} to ${value}`);
+            } catch (e) {
+                alert("Failed to update setting");
+            }
+        }
+
+        async function deleteTrip(tripId) {
+            if (!confirm(`Are you sure you want to DELETE trip ${tripId}? This cannot be undone.`)) return;
+
+            try {
+                await fetch(`/api/trips/${tripId}?admin_key=${ADMIN_KEY}`, { method: "DELETE" });
+                fetchTrips();
+            } catch (e) {
+                alert("Failed to delete trip");
+            }
+        }
+
+        async function uploadTrip(e) {
+            e.preventDefault();
+            const tripId = document.getElementById("trip-id").value;
+            const file = document.getElementById("pdf-file").files[0];
+            const btn = e.target.querySelector("button");
+            const status = document.getElementById("upload-status");
+
+            btn.disabled = true;
+            btn.innerText = "Uploading...";
+            status.innerText = "";
+
+            const formData = new FormData();
+            formData.append("trip_id", tripId);
+            formData.append("file", file);
+            formData.append("admin_key", ADMIN_KEY);
+
+            try {
+                const res = await fetch("/upload_trip", {
+                    method: "POST",
+                    body: formData
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    status.style.color = "green";
+                    status.innerText = "Success! Trip created.";
+                    document.getElementById("upload-form").reset();
+                    fetchTrips();
+                } else {
+                    status.style.color = "red";
+                    status.innerText = "Error: " + data.detail;
+                }
+            } catch (err) {
+                status.style.color = "red";
+                status.innerText = "Network Error";
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Upload & Create";
+            }
+        }
+    </script>
+
+</body>
+
+</html>
