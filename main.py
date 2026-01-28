@@ -12,7 +12,6 @@ from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
-import google.generativeai as genai
 from google.cloud import texttospeech
 import chromadb
 from pypdf import PdfReader
@@ -26,10 +25,7 @@ WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
 WHATSAPP_PHONE_ID = os.getenv("WHATSAPP_PHONE_ID")
 WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "secure_verify_token")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-
-# Initialize Clients
-genai.configure(api_key=GOOGLE_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+GEMINI_MODEL = "gemini-1.5-flash"
 
 # Initialize TTS Client
 try:
@@ -318,8 +314,15 @@ def handle_qa(user_phone: str, trip_id: str, query: str, base_url: str):
     )
     
     try:
-        response = model.generate_content(prompt)
-        reply_text = response.text.strip()
+        # Use REST API directly (avoids v1beta SDK issues)
+        api_url = f"https://generativelanguage.googleapis.com/v1/models/{GEMINI_MODEL}:generateContent?key={GOOGLE_API_KEY}"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}]
+        }
+        response = requests.post(api_url, json=payload, timeout=30)
+        response.raise_for_status()
+        
+        reply_text = response.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
         logger.info(f"LLM Response: {reply_text}")
         
         if "HANDOFF_REQUIRED" in reply_text:
