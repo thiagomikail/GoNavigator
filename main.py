@@ -38,21 +38,14 @@ except Exception as e:
     print(f"Warning: TTS Client failed to init (Check Credentials): {e}")
     tts_client = None
 
-# Database Setup (Use Google Embeddings to save RAM)
-from chromadb.utils.embedding_functions import GoogleGenerativeAiEmbeddingFunction
-
-google_ef = GoogleGenerativeAiEmbeddingFunction(
-    api_key=GOOGLE_API_KEY,
-    model_name="models/embedding-001"
-)
-
+# Database Setup (Use ChromaDB's default local embeddings for reliability)
 try:
     chroma_client = chromadb.PersistentClient(path="./chroma_db")
 except AttributeError:
     from chromadb.config import Settings
     chroma_client = chromadb.Client(Settings(chroma_db_impl="duckdb+parquet", persist_directory="./chroma_db"))
 
-collection = chroma_client.get_or_create_collection(name="trip_knowledge", embedding_function=google_ef)
+collection = chroma_client.get_or_create_collection(name="trip_knowledge")
 
 # Simple Session Store
 SESSION_FILE = "trip_sessions.json"
