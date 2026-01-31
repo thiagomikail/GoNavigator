@@ -115,7 +115,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # --- Helper: Text to Speech using Gemini ---
 def generate_audio(text: str) -> str:
-    """Generates WAV audio from text using Gemini TTS and returns the relative filename."""
+    """Generates MP3 audio from text using Gemini TTS and returns the relative filename."""
     try:
         api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_TTS_MODEL}:generateContent?key={GOOGLE_API_KEY}"
         
@@ -143,25 +143,42 @@ def generate_audio(text: str) -> str:
         
         result = response.json()
         
-        # Extract audio data from response (PCM format)
+        # Extract audio data from response (PCM format: s16le, 24kHz, mono)
         if "candidates" in result and result["candidates"]:
             parts = result["candidates"][0].get("content", {}).get("parts", [])
             for part in parts:
                 if "inlineData" in part:
                     pcm_data = base64.b64decode(part["inlineData"]["data"])
                     
-                    # Convert PCM to WAV
-                    import wave
-                    filename = f"audio_{uuid.uuid4()}.wav"
+                    # Save PCM to temp file, convert to MP3 using ffmpeg
+                    import subprocess
+                    import tempfile
+                    
+                    filename = f"audio_{uuid.uuid4()}.mp3"
                     filepath = os.path.join("static/audio", filename)
                     
-                    with wave.open(filepath, 'wb') as wav_file:
-                        wav_file.setnchannels(1)  # Mono
-                        wav_file.setsampwidth(2)  # 16-bit
-                        wav_file.setframerate(24000)  # 24kHz
-                        wav_file.writeframes(pcm_data)
+                    # Write PCM to temp file
+                    with tempfile.NamedTemporaryFile(suffix='.pcm', delete=False) as tmp:
+                        tmp.write(pcm_data)
+                        tmp_path = tmp.name
                     
-                    return filename
+                    try:
+                        # Convert PCM to MP3 using ffmpeg
+                        subprocess.run([
+                            'ffmpeg', '-y',
+                            '-f', 's16le',        # Input format: signed 16-bit little-endian
+                            '-ar', '24000',       # Sample rate: 24kHz
+                            '-ac', '1',           # Channels: mono
+                            '-i', tmp_path,       # Input file
+                            '-b:a', '64k',        # Audio bitrate
+                            filepath              # Output file
+                        ], check=True, capture_output=True)
+                        
+                        return filename
+                    finally:
+                        # Clean up temp file
+                        if os.path.exists(tmp_path):
+                            os.unlink(tmp_path)
         
         logger.warning("No audio data in Gemini response")
         return None
