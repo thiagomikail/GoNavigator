@@ -26,7 +26,7 @@ WHATSAPP_PHONE_ID = os.getenv("WHATSAPP_PHONE_ID")
 WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "secure_verify_token")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 GEMINI_MODEL = "gemini-2.5-flash-lite"
-GEMINI_TTS_MODEL = "gemini-2.5-flash"  # TTS requires flash model
+GEMINI_TTS_MODEL = "gemini-2.5-flash-preview-tts"  # TTS-specific model
 
 # Database Setup (Use ChromaDB's default local embeddings for reliability)
 try:
@@ -115,22 +115,23 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # --- Helper: Text to Speech using Gemini ---
 def generate_audio(text: str) -> str:
-    """Generates MP3 from text using Gemini TTS and returns the relative filename."""
+    """Generates WAV audio from text using Gemini TTS and returns the relative filename."""
     try:
         api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_TTS_MODEL}:generateContent?key={GOOGLE_API_KEY}"
         
+        # Use camelCase keys per Google API docs
         payload = {
             "contents": [{
                 "parts": [{
-                    "text": f"Gere áudio falando o seguinte texto em português brasileiro com voz feminina natural: {text}"
+                    "text": f"Fale em português brasileiro: {text}"
                 }]
             }],
             "generationConfig": {
-                "response_modalities": ["AUDIO"],
-                "speech_config": {
-                    "voice_config": {
-                        "prebuilt_voice_config": {
-                            "voice_name": "Aoede"
+                "responseModalities": ["AUDIO"],
+                "speechConfig": {
+                    "voiceConfig": {
+                        "prebuiltVoiceConfig": {
+                            "voiceName": "Kore"
                         }
                     }
                 }
@@ -142,16 +143,24 @@ def generate_audio(text: str) -> str:
         
         result = response.json()
         
-        # Extract audio data from response
+        # Extract audio data from response (PCM format)
         if "candidates" in result and result["candidates"]:
             parts = result["candidates"][0].get("content", {}).get("parts", [])
             for part in parts:
                 if "inlineData" in part:
-                    audio_data = base64.b64decode(part["inlineData"]["data"])
-                    filename = f"audio_{uuid.uuid4()}.mp3"
+                    pcm_data = base64.b64decode(part["inlineData"]["data"])
+                    
+                    # Convert PCM to WAV
+                    import wave
+                    filename = f"audio_{uuid.uuid4()}.wav"
                     filepath = os.path.join("static/audio", filename)
-                    with open(filepath, "wb") as out:
-                        out.write(audio_data)
+                    
+                    with wave.open(filepath, 'wb') as wav_file:
+                        wav_file.setnchannels(1)  # Mono
+                        wav_file.setsampwidth(2)  # 16-bit
+                        wav_file.setframerate(24000)  # 24kHz
+                        wav_file.writeframes(pcm_data)
+                    
                     return filename
         
         logger.warning("No audio data in Gemini response")
