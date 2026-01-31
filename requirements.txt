@@ -6,5 +6,4 @@ pypdf
 requests
 python-dotenv
 python-multipart
-google-cloud-texttospeech
 

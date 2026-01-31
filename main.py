@@ -11,8 +11,8 @@ from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form
 from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
+import base64
 
-from google.cloud import texttospeech
 import chromadb
 from pypdf import PdfReader
 from io import BytesIO
@@ -26,13 +26,7 @@ WHATSAPP_PHONE_ID = os.getenv("WHATSAPP_PHONE_ID")
 WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "secure_verify_token")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 GEMINI_MODEL = "gemini-2.5-flash-lite"
-
-# Initialize TTS Client
-try:
-    tts_client = texttospeech.TextToSpeechClient()
-except Exception as e:
-    print(f"Warning: TTS Client failed to init (Check Credentials): {e}")
-    tts_client = None
+GEMINI_TTS_MODEL = "gemini-2.5-flash"  # TTS requires flash model
 
 # Database Setup (Use ChromaDB's default local embeddings for reliability)
 try:
@@ -119,31 +113,52 @@ if not os.path.exists("static/audio"):
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# --- Helper: Text to Speech ---
+# --- Helper: Text to Speech using Gemini ---
 def generate_audio(text: str) -> str:
-    """Generates MP3 from text and returns the relative filename."""
-    if not tts_client:
+    """Generates MP3 from text using Gemini TTS and returns the relative filename."""
+    try:
+        api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_TTS_MODEL}:generateContent?key={GOOGLE_API_KEY}"
+        
+        payload = {
+            "contents": [{
+                "parts": [{
+                    "text": f"Gere áudio falando o seguinte texto em português brasileiro com voz feminina natural: {text}"
+                }]
+            }],
+            "generationConfig": {
+                "response_modalities": ["AUDIO"],
+                "speech_config": {
+                    "voice_config": {
+                        "prebuilt_voice_config": {
+                            "voice_name": "Aoede"
+                        }
+                    }
+                }
+            }
+        }
+        
+        response = requests.post(api_url, json=payload, timeout=60)
+        response.raise_for_status()
+        
+        result = response.json()
+        
+        # Extract audio data from response
+        if "candidates" in result and result["candidates"]:
+            parts = result["candidates"][0].get("content", {}).get("parts", [])
+            for part in parts:
+                if "inlineData" in part:
+                    audio_data = base64.b64decode(part["inlineData"]["data"])
+                    filename = f"audio_{uuid.uuid4()}.mp3"
+                    filepath = os.path.join("static/audio", filename)
+                    with open(filepath, "wb") as out:
+                        out.write(audio_data)
+                    return filename
+        
+        logger.warning("No audio data in Gemini response")
         return None
         
-    try:
-        synthesis_input = texttospeech.SynthesisInput(text=text)
-        voice = texttospeech.VoiceSelectionParams(
-            language_code="pt-BR",
-            name="pt-BR-Neural2-A"
-        )
-        audio_config = texttospeech.AudioConfig(
-            audio_encoding=texttospeech.AudioEncoding.MP3
-        )
-        response = tts_client.synthesize_speech(
-            input=synthesis_input, voice=voice, audio_config=audio_config
-        )
-        filename = f"audio_{uuid.uuid4()}.mp3"
-        filepath = os.path.join("static/audio", filename)
-        with open(filepath, "wb") as out:
-            out.write(response.audio_content)
-        return filename
     except Exception as e:
-        logger.error(f"TTS Error: {e}", exc_info=True)
+        logger.error(f"Gemini TTS Error: {e}", exc_info=True)
         return None
 
 # --- Ingestion Logic ---
