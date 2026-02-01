@@ -1,0 +1,13 @@
+{
+    "suggestion_links": {
+        "ideias_viagem": "https://placeholder.com/ideias-de-viagens",
+        "miles_tips": "https://placeholder.com/dicas-de-milhas"
+    },
+    "reminder_defaults": {
+        "times": [
+            "08:00",
+            "20:00"
+        ],
+        "enabled": true
+    }
+}

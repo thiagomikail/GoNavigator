@@ -1,0 +1,8 @@
+{
+  "admin": {
+    "email": "admin@gonavigator.com",
+    "password_hash": "",
+    "role": "superuser",
+    "created_at": 1706825453
+  }
+}

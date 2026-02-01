@@ -85,6 +85,68 @@ def save_session(phone: str, trip_id: str):
     with open(SESSION_FILE, "w") as f:
         json.dump(sessions, f)
 
+# --- User Management (Roles: superuser, employee) ---
+USERS_FILE = "users.json"
+import hashlib
+
+def hash_password(password: str) -> str:
+    """Simple SHA256 hash for passwords."""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def load_users() -> Dict[str, Dict]:
+    if os.path.exists(USERS_FILE):
+        try:
+            with open(USERS_FILE, "r") as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_users(users: Dict):
+    with open(USERS_FILE, "w") as f:
+        json.dump(users, f, indent=2)
+
+def authenticate_user(email: str, password: str) -> Dict:
+    """Authenticate user and return user data with role, or None if invalid."""
+    users = load_users()
+    
+    # Fallback: check legacy ADMIN_PASSWORD env var for superuser
+    admin_pass = os.getenv("ADMIN_PASSWORD", "secret123")
+    if password == admin_pass:
+        return {"email": "admin", "role": "superuser"}
+    
+    # Check registered users
+    for user_id, user_data in users.items():
+        if user_data.get("email") == email:
+            if user_data.get("password_hash") == hash_password(password):
+                return {"email": email, "role": user_data.get("role", "employee")}
+    return None
+
+def is_superuser(auth_result: Dict) -> bool:
+    """Check if authenticated user is superuser."""
+    return auth_result and auth_result.get("role") == "superuser"
+
+# --- Settings Management ---
+SETTINGS_FILE = "settings.json"
+
+def load_settings() -> Dict:
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, "r") as f:
+                return json.load(f)
+        except:
+            return {}
+    return {
+        "suggestion_links": {
+            "ideias_viagem": "https://placeholder.com/ideias",
+            "miles_tips": "https://placeholder.com/milhas"
+        }
+    }
+
+def save_settings(settings: Dict):
+    with open(SETTINGS_FILE, "w") as f:
+        json.dump(settings, f, indent=2)
+
 # --- Trip Management ---
 TRIPS_FILE = "trips.json"
 
@@ -270,29 +332,168 @@ async def upload_trip(
         raise HTTPException(status_code=500, detail=str(e))
 
 # --- Admin API ---
+
+# Authentication
+@app.post("/api/auth/login")
+async def login(request: Request):
+    data = await request.json()
+    email = data.get("email", "")
+    password = data.get("password", "")
+    
+    user = authenticate_user(email, password)
+    if user:
+        return {"status": "success", "user": user}
+    raise HTTPException(status_code=401, detail="Invalid credentials")
+
+# User Management (Superuser only)
+@app.get("/api/users")
+async def list_users(admin_key: str):
+    user = authenticate_user("", admin_key)
+    if not is_superuser(user):
+        raise HTTPException(status_code=403, detail="Superuser access required")
+    return load_users()
+
+@app.post("/api/users")
+async def create_user(request: Request, admin_key: str):
+    user = authenticate_user("", admin_key)
+    if not is_superuser(user):
+        raise HTTPException(status_code=403, detail="Superuser access required")
+    
+    data = await request.json()
+    email = data.get("email")
+    password = data.get("password")
+    role = data.get("role", "employee")
+    
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password required")
+    
+    users = load_users()
+    user_id = email.split("@")[0]
+    users[user_id] = {
+        "email": email,
+        "password_hash": hash_password(password),
+        "role": role,
+        "created_at": time.time()
+    }
+    save_users(users)
+    return {"status": "created", "email": email, "role": role}
+
+@app.delete("/api/users/{user_id}")
+async def delete_user(user_id: str, admin_key: str):
+    user = authenticate_user("", admin_key)
+    if not is_superuser(user):
+        raise HTTPException(status_code=403, detail="Superuser access required")
+    
+    users = load_users()
+    if user_id in users:
+        del users[user_id]
+        save_users(users)
+        return {"status": "deleted", "user_id": user_id}
+    raise HTTPException(status_code=404, detail="User not found")
+
+# Settings Management
+@app.get("/api/settings")
+async def get_settings(admin_key: str):
+    user = authenticate_user("", admin_key)
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return load_settings()
+
+@app.put("/api/settings")
+async def update_settings(request: Request, admin_key: str):
+    user = authenticate_user("", admin_key)
+    if not is_superuser(user):
+        raise HTTPException(status_code=403, detail="Superuser access required")
+    
+    data = await request.json()
+    settings = load_settings()
+    settings.update(data)
+    save_settings(settings)
+    return {"status": "updated", "settings": settings}
+
+# Database Stats
+@app.get("/api/database/stats")
+async def get_database_stats(admin_key: str):
+    user = authenticate_user("", admin_key)
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    trips = load_trips()
+    stats = {"total_trips": len(trips), "trips": {}, "total_chunks": 0}
+    
+    # Count chunks per trip
+    try:
+        all_results = collection.get(include=["metadatas"])
+        trip_chunks = {}
+        for meta in all_results.get("metadatas", []):
+            tid = meta.get("trip_id", "unknown")
+            trip_chunks[tid] = trip_chunks.get(tid, 0) + 1
+        
+        stats["trips"] = trip_chunks
+        stats["total_chunks"] = sum(trip_chunks.values())
+    except Exception as e:
+        logger.error(f"Error getting DB stats: {e}")
+    
+    # Get DB size
+    db_path = "chroma_db"
+    if os.path.exists(db_path):
+        total_size = sum(os.path.getsize(os.path.join(dp, f)) 
+                        for dp, dn, fn in os.walk(db_path) for f in fn)
+        stats["db_size_mb"] = round(total_size / (1024 * 1024), 2)
+    
+    return stats
+
+# Trip Management
 @app.get("/api/trips")
-async def list_trips(admin_key: str):
-    if admin_key != os.getenv("ADMIN_PASSWORD", "secret123"):
+async def list_trips_api(admin_key: str):
+    user = authenticate_user("", admin_key)
+    if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")
     return load_trips()
 
 @app.delete("/api/trips/{trip_id}")
 async def delete_trip(trip_id: str, admin_key: str):
-    if admin_key != os.getenv("ADMIN_PASSWORD", "secret123"):
-         raise HTTPException(status_code=401, detail="Unauthorized")
+    user = authenticate_user("", admin_key)
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
     delete_trip_data(trip_id)
     return {"status": "deleted", "trip_id": trip_id}
 
 @app.post("/api/trips/{trip_id}/settings")
-async def update_trip_settings(trip_id: str, settings: Dict, admin_key: str):
-    if admin_key != os.getenv("ADMIN_PASSWORD", "secret123"):
-         raise HTTPException(status_code=401, detail="Unauthorized")
+async def update_trip_settings(trip_id: str, request: Request, admin_key: str):
+    user = authenticate_user("", admin_key)
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    settings = await request.json()
     save_trip(trip_id, settings)
     return {"status": "updated", "trip_id": trip_id, "settings": settings}
 
+@app.post("/api/trips/{trip_id}/append")
+async def append_trip_document(
+    trip_id: str,
+    file: UploadFile = File(...),
+    admin_key: str = Form(...)
+):
+    user = authenticate_user("", admin_key)
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    trips = load_trips()
+    if trip_id.upper() not in trips:
+        raise HTTPException(status_code=404, detail="Trip not found")
+    
+    try:
+        content = await file.read()
+        file_stream = BytesIO(content)
+        process_pdf_upload(file_stream, trip_id.upper())
+        return {"status": "success", "trip_id": trip_id, "message": "Document appended to trip."}
+    except Exception as e:
+        logger.error(f"Append failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.api_route("/", methods=["GET", "HEAD"])
 async def health_check():
-    return "GoNavigator Online. Go to /static/index.html for Admin."
+    return "GoNavigator Online. Go to /static/admin.html for Admin."
 
 @app.get("/webhook")
 async def verify_webhook(request: Request):

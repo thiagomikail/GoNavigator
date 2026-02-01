@@ -8,7 +8,6 @@
     <style>
         :root {
             --primary: #25D366;
-            /* WhatsApp Green */
             --dark: #128C7E;
             --bg: #f0f2f5;
             --card: #ffffff;
@@ -24,18 +23,22 @@
         }
 
         .container {
-            max-width: 1000px;
+            max-width: 1200px;
             margin: 0 auto;
         }
 
         header {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
 
         h1 {
             color: var(--dark);
             margin: 0;
+        }
+
+        h2 {
+            margin-top: 0;
         }
 
         .card {
@@ -54,6 +57,7 @@
             border-radius: 5px;
             cursor: pointer;
             font-weight: bold;
+            font-size: 14px;
         }
 
         .btn:hover {
@@ -68,20 +72,30 @@
             background-color: #bb2d3b;
         }
 
+        .btn-secondary {
+            background-color: #6c757d;
+        }
+
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+
         input,
-        button {
+        select {
             font-size: 16px;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
         }
 
         input[type="text"],
         input[type="password"],
+        input[type="email"],
         input[type="file"] {
             width: 100%;
-            padding: 10px;
-            margin: 10px 0;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            box-sizing: border-box;
         }
 
         table {
@@ -101,13 +115,11 @@
             background-color: #f8f9fa;
         }
 
-        /* Toggle Switch */
         .switch {
             position: relative;
             display: inline-block;
             width: 40px;
             height: 20px;
-            vertical-align: middle;
         }
 
         .switch input {
@@ -163,70 +175,233 @@
         .hidden {
             display: none;
         }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: #e9ecef;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .tab.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .stat-box {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-box .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--dark);
+        }
+
+        .stat-box .label {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .user-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .badge-superuser {
+            background: #ffc107;
+            color: #000;
+        }
+
+        .badge-employee {
+            background: #17a2b8;
+            color: #fff;
+        }
     </style>
 </head>
 
 <body>
 
     <div id="login-modal">
-        <div class="card" style="width: 300px; text-align: center;">
-            <h2>Admin Login</h2>
+        <div class="card" style="width: 320px; text-align: center;">
+            <h2>🌍 GoNavigator</h2>
+            <p>Admin Login</p>
             <input type="password" id="admin-pass" placeholder="Enter Admin Password">
-            <button class="btn" onclick="login()">Access Dashboard</button>
+            <button class="btn" onclick="login()" style="width: 100%; margin-top: 10px;">Access Dashboard</button>
         </div>
     </div>
 
     <div class="container hidden" id="dashboard">
         <header>
             <h1>GoNavigator Admin</h1>
-            <p>Manage Trips & AI Settings</p>
+            <p>Manage Trips, Users & Settings</p>
         </header>
 
-        <!-- Upload Section -->
-        <div class="card">
-            <h2>✈️ Create New Trip</h2>
-            <p>Upload a PDF itinerary to generate a new trip code.</p>
-            <form id="upload-form" onsubmit="uploadTrip(event)">
-                <input type="text" id="trip-id" placeholder="Trip Code (e.g., PARIS24)" required>
-                <input type="file" id="pdf-file" accept="application/pdf" required>
-                <button type="submit" class="btn">Upload & Create</button>
-            </form>
-            <div id="upload-status" style="margin-top: 10px;"></div>
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('trips')">✈️ Trips</button>
+            <button class="tab" onclick="showTab('database')">📊 Database</button>
+            <button class="tab superuser-only" onclick="showTab('users')">👥 Users</button>
+            <button class="tab superuser-only" onclick="showTab('settings')">⚙️ Settings</button>
         </div>
 
-        <!-- Active Trips Section -->
-        <div class="card">
-            <h2>🌍 Active Trips</h2>
-            <button class="btn" style="background-color: #6c757d; font-size: 14px; margin-bottom: 10px;"
-                onclick="fetchTrips()">Refresh List</button>
-            <table id="trips-table">
-                <thead>
-                    <tr>
-                        <th>Trip Code</th>
-                        <th>Created At</th>
-                        <th>Voice (TTS)</th>
-                        <th>AI Assistant</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- Rows injected by JS -->
-                </tbody>
-            </table>
+        <!-- TRIPS TAB -->
+        <div id="tab-trips" class="tab-content active">
+            <!-- Upload Section -->
+            <div class="card">
+                <h2>✈️ Create New Trip</h2>
+                <form id="upload-form" onsubmit="uploadTrip(event)">
+                    <input type="text" id="trip-id" placeholder="Trip Code (e.g., PARIS24)" required>
+                    <input type="file" id="pdf-file" accept="application/pdf" required>
+                    <button type="submit" class="btn">Upload & Create</button>
+                </form>
+                <div id="upload-status" style="margin-top: 10px;"></div>
+            </div>
+
+            <!-- Active Trips -->
+            <div class="card">
+                <h2>🌍 Active Trips</h2>
+                <button class="btn btn-secondary btn-sm" onclick="fetchTrips()">🔄 Refresh</button>
+                <table id="trips-table">
+                    <thead>
+                        <tr>
+                            <th>Trip Code</th>
+                            <th>Created</th>
+                            <th>Voice</th>
+                            <th>AI</th>
+                            <th>Reminders</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- DATABASE TAB -->
+        <div id="tab-database" class="tab-content">
+            <div class="card">
+                <h2>📊 Database Statistics</h2>
+                <button class="btn btn-secondary btn-sm" onclick="fetchDbStats()">🔄 Refresh</button>
+                <div id="db-stats" class="stats-grid" style="margin-top: 15px;">
+                    <div class="stat-box">
+                        <div class="value" id="stat-trips">-</div>
+                        <div class="label">Total Trips</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="value" id="stat-chunks">-</div>
+                        <div class="label">Total Chunks</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="value" id="stat-size">-</div>
+                        <div class="label">DB Size (MB)</div>
+                    </div>
+                </div>
+                <h3 style="margin-top: 20px;">Chunks per Trip</h3>
+                <div id="chunks-per-trip"></div>
+            </div>
+        </div>
+
+        <!-- USERS TAB (Superuser only) -->
+        <div id="tab-users" class="tab-content superuser-only">
+            <div class="card">
+                <h2>👥 User Management</h2>
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <input type="email" id="new-user-email" placeholder="Email" style="flex: 2;">
+                    <input type="password" id="new-user-pass" placeholder="Password" style="flex: 1;">
+                    <select id="new-user-role" style="flex: 1;">
+                        <option value="employee">Employee</option>
+                        <option value="superuser">Superuser</option>
+                    </select>
+                    <button class="btn" onclick="addUser()">Add User</button>
+                </div>
+                <table id="users-table">
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- SETTINGS TAB (Superuser only) -->
+        <div id="tab-settings" class="tab-content superuser-only">
+            <div class="card">
+                <h2>⚙️ Suggestion Links</h2>
+                <p>Configure placeholder links for non-trip customers:</p>
+                <label>Idéias de Viagens URL:</label>
+                <input type="text" id="link-ideias" placeholder="https://...">
+                <label>Dicas de Milhas URL:</label>
+                <input type="text" id="link-milhas" placeholder="https://...">
+                <button class="btn" onclick="saveSettings()" style="margin-top: 10px;">Save Settings</button>
+                <div id="settings-status" style="margin-top: 10px;"></div>
+            </div>
         </div>
     </div>
 
     <script>
         let ADMIN_KEY = "";
+        let USER_ROLE = "";
 
         function login() {
             const pass = document.getElementById("admin-pass").value;
             if (pass) {
                 ADMIN_KEY = pass;
+                // For now, assume superuser if password matches
+                USER_ROLE = "superuser";
                 document.getElementById("login-modal").style.display = "none";
                 document.getElementById("dashboard").classList.remove("hidden");
+
+                // Show superuser tabs
+                if (USER_ROLE !== "superuser") {
+                    document.querySelectorAll(".superuser-only").forEach(el => el.style.display = "none");
+                }
+
                 fetchTrips();
             }
+        }
+
+        function showTab(tabName) {
+            document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+            document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
+            document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add("active");
+            document.getElementById(`tab-${tabName}`).classList.add("active");
+
+            if (tabName === "database") fetchDbStats();
+            if (tabName === "users") fetchUsers();
+            if (tabName === "settings") fetchSettings();
         }
 
         async function fetchTrips() {
@@ -234,110 +409,155 @@
                 const res = await fetch(`/api/trips?admin_key=${ADMIN_KEY}`);
                 if (res.status === 401) { alert("Invalid Password"); location.reload(); return; }
                 const trips = await res.json();
-                renderTable(trips);
-            } catch (e) {
-                console.error("Error fetching trips:", e);
-            }
+                renderTripsTable(trips);
+            } catch (e) { console.error("Error:", e); }
         }
 
-        function renderTable(trips) {
+        function renderTripsTable(trips) {
             const tbody = document.querySelector("#trips-table tbody");
             tbody.innerHTML = "";
 
             Object.keys(trips).forEach(tripId => {
                 const t = trips[tripId];
-                const date = new Date(t.created_at * 1000).toLocaleString();
-
+                const date = new Date(t.created_at * 1000).toLocaleDateString();
                 const tr = document.createElement("tr");
                 tr.innerHTML = `
-                <td><strong>${tripId}</strong></td>
-                <td>${date}</td>
-                <td>
-                    <label class="switch">
-                        <input type="checkbox" ${t.voice_enabled ? 'checked' : ''} 
-                        onchange="toggleSetting('${tripId}', 'voice_enabled', this.checked)">
-                        <span class="slider"></span>
-                    </label>
-                </td>
-                <td>
-                    <label class="switch">
-                        <input type="checkbox" ${t.ai_enabled ? 'checked' : ''} 
-                        onchange="toggleSetting('${tripId}', 'ai_enabled', this.checked)">
-                        <span class="slider"></span>
-                    </label>
-                </td>
-                <td>
-                    <button class="btn btn-danger" onclick="deleteTrip('${tripId}')">Delete</button>
-                </td>
-            `;
+                    <td><strong>${tripId}</strong></td>
+                    <td>${date}</td>
+                    <td><label class="switch"><input type="checkbox" ${t.voice_enabled !== false ? 'checked' : ''} 
+                        onchange="toggleSetting('${tripId}', 'voice_enabled', this.checked)"><span class="slider"></span></label></td>
+                    <td><label class="switch"><input type="checkbox" ${t.ai_enabled !== false ? 'checked' : ''} 
+                        onchange="toggleSetting('${tripId}', 'ai_enabled', this.checked)"><span class="slider"></span></label></td>
+                    <td><label class="switch"><input type="checkbox" ${t.reminder_enabled ? 'checked' : ''} 
+                        onchange="toggleSetting('${tripId}', 'reminder_enabled', this.checked)"><span class="slider"></span></label></td>
+                    <td>
+                        <button class="btn btn-sm" onclick="appendDoc('${tripId}')">📄 Append</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteTrip('${tripId}')">🗑️</button>
+                    </td>
+                `;
                 tbody.appendChild(tr);
             });
         }
 
         async function toggleSetting(tripId, setting, value) {
-            const payload = {};
-            payload[setting] = value;
-            try {
-                await fetch(`/api/trips/${tripId}/settings?admin_key=${ADMIN_KEY}`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload)
-                });
-                console.log(`Updated ${tripId} ${setting} to ${value}`);
-            } catch (e) {
-                alert("Failed to update setting");
-            }
+            const payload = {}; payload[setting] = value;
+            await fetch(`/api/trips/${tripId}/settings?admin_key=${ADMIN_KEY}`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
         }
 
         async function deleteTrip(tripId) {
-            if (!confirm(`Are you sure you want to DELETE trip ${tripId}? This cannot be undone.`)) return;
+            if (!confirm(`Delete trip ${tripId}?`)) return;
+            await fetch(`/api/trips/${tripId}?admin_key=${ADMIN_KEY}`, { method: "DELETE" });
+            fetchTrips();
+        }
 
-            try {
-                await fetch(`/api/trips/${tripId}?admin_key=${ADMIN_KEY}`, { method: "DELETE" });
-                fetchTrips();
-            } catch (e) {
-                alert("Failed to delete trip");
-            }
+        function appendDoc(tripId) {
+            const input = document.createElement("input");
+            input.type = "file"; input.accept = "application/pdf";
+            input.onchange = async () => {
+                const formData = new FormData();
+                formData.append("file", input.files[0]);
+                formData.append("admin_key", ADMIN_KEY);
+                const res = await fetch(`/api/trips/${tripId}/append`, { method: "POST", body: formData });
+                if (res.ok) alert("Document appended!"); else alert("Failed to append.");
+            };
+            input.click();
         }
 
         async function uploadTrip(e) {
             e.preventDefault();
             const tripId = document.getElementById("trip-id").value;
             const file = document.getElementById("pdf-file").files[0];
-            const btn = e.target.querySelector("button");
             const status = document.getElementById("upload-status");
-
-            btn.disabled = true;
-            btn.innerText = "Uploading...";
-            status.innerText = "";
 
             const formData = new FormData();
             formData.append("trip_id", tripId);
             formData.append("file", file);
             formData.append("admin_key", ADMIN_KEY);
 
-            try {
-                const res = await fetch("/upload_trip", {
-                    method: "POST",
-                    body: formData
-                });
-                const data = await res.json();
-                if (res.ok) {
-                    status.style.color = "green";
-                    status.innerText = "Success! Trip created.";
-                    document.getElementById("upload-form").reset();
-                    fetchTrips();
-                } else {
-                    status.style.color = "red";
-                    status.innerText = "Error: " + data.detail;
-                }
-            } catch (err) {
-                status.style.color = "red";
-                status.innerText = "Network Error";
-            } finally {
-                btn.disabled = false;
-                btn.innerText = "Upload & Create";
+            const res = await fetch("/upload_trip", { method: "POST", body: formData });
+            if (res.ok) {
+                status.style.color = "green"; status.innerText = "Success!";
+                document.getElementById("upload-form").reset();
+                fetchTrips();
+            } else {
+                status.style.color = "red"; status.innerText = "Error uploading.";
             }
+        }
+
+        async function fetchDbStats() {
+            const res = await fetch(`/api/database/stats?admin_key=${ADMIN_KEY}`);
+            const stats = await res.json();
+            document.getElementById("stat-trips").innerText = stats.total_trips || 0;
+            document.getElementById("stat-chunks").innerText = stats.total_chunks || 0;
+            document.getElementById("stat-size").innerText = stats.db_size_mb || 0;
+
+            const chunks = document.getElementById("chunks-per-trip");
+            chunks.innerHTML = Object.entries(stats.trips || {})
+                .map(([id, count]) => `<span style="margin-right:15px;"><strong>${id}:</strong> ${count} chunks</span>`)
+                .join("");
+        }
+
+        async function fetchUsers() {
+            const res = await fetch(`/api/users?admin_key=${ADMIN_KEY}`);
+            if (res.status === 403) return;
+            const users = await res.json();
+            const tbody = document.querySelector("#users-table tbody");
+            tbody.innerHTML = "";
+
+            Object.entries(users).forEach(([id, u]) => {
+                const date = new Date(u.created_at * 1000).toLocaleDateString();
+                const badge = u.role === "superuser" ? "badge-superuser" : "badge-employee";
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td>${u.email}</td>
+                    <td><span class="user-badge ${badge}">${u.role}</span></td>
+                    <td>${date}</td>
+                    <td><button class="btn btn-danger btn-sm" onclick="deleteUser('${id}')">🗑️</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function addUser() {
+            const email = document.getElementById("new-user-email").value;
+            const password = document.getElementById("new-user-pass").value;
+            const role = document.getElementById("new-user-role").value;
+
+            const res = await fetch(`/api/users?admin_key=${ADMIN_KEY}`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, password, role })
+            });
+            if (res.ok) { fetchUsers(); document.getElementById("new-user-email").value = ""; document.getElementById("new-user-pass").value = ""; }
+        }
+
+        async function deleteUser(userId) {
+            if (!confirm(`Delete user ${userId}?`)) return;
+            await fetch(`/api/users/${userId}?admin_key=${ADMIN_KEY}`, { method: "DELETE" });
+            fetchUsers();
+        }
+
+        async function fetchSettings() {
+            const res = await fetch(`/api/settings?admin_key=${ADMIN_KEY}`);
+            const settings = await res.json();
+            const links = settings.suggestion_links || {};
+            document.getElementById("link-ideias").value = links.ideias_viagem || "";
+            document.getElementById("link-milhas").value = links.miles_tips || "";
+        }
+
+        async function saveSettings() {
+            const ideias = document.getElementById("link-ideias").value;
+            const milhas = document.getElementById("link-milhas").value;
+            const status = document.getElementById("settings-status");
+
+            const res = await fetch(`/api/settings?admin_key=${ADMIN_KEY}`, {
+                method: "PUT", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ suggestion_links: { ideias_viagem: ideias, miles_tips: milhas } })
+            });
+            if (res.ok) { status.style.color = "green"; status.innerText = "Saved!"; }
+            else { status.style.color = "red"; status.innerText = "Error saving."; }
         }
     </script>
 
