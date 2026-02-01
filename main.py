@@ -119,7 +119,6 @@ def generate_audio(text: str) -> str:
     try:
         api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_TTS_MODEL}:generateContent?key={GOOGLE_API_KEY}"
         
-        # Use camelCase keys per Google API docs
         payload = {
             "contents": [{
                 "parts": [{
@@ -143,40 +142,30 @@ def generate_audio(text: str) -> str:
         
         result = response.json()
         
-        # Extract audio data from response (PCM format: s16le, 24kHz, mono)
         if "candidates" in result and result["candidates"]:
             parts = result["candidates"][0].get("content", {}).get("parts", [])
             for part in parts:
                 if "inlineData" in part:
                     pcm_data = base64.b64decode(part["inlineData"]["data"])
                     
-                    # Save PCM to temp file, convert to MP3 using ffmpeg
                     import subprocess
                     import tempfile
                     
                     filename = f"audio_{uuid.uuid4()}.mp3"
                     filepath = os.path.join("static/audio", filename)
                     
-                    # Write PCM to temp file
                     with tempfile.NamedTemporaryFile(suffix='.pcm', delete=False) as tmp:
                         tmp.write(pcm_data)
                         tmp_path = tmp.name
                     
                     try:
-                        # Convert PCM to MP3 using ffmpeg
                         subprocess.run([
                             'ffmpeg', '-y',
-                            '-f', 's16le',        # Input format: signed 16-bit little-endian
-                            '-ar', '24000',       # Sample rate: 24kHz
-                            '-ac', '1',           # Channels: mono
-                            '-i', tmp_path,       # Input file
-                            '-b:a', '64k',        # Audio bitrate
-                            filepath              # Output file
+                            '-f', 's16le', '-ar', '24000', '-ac', '1',
+                            '-i', tmp_path, '-b:a', '64k', filepath
                         ], check=True, capture_output=True)
-                        
                         return filename
                     finally:
-                        # Clean up temp file
                         if os.path.exists(tmp_path):
                             os.unlink(tmp_path)
         
@@ -331,17 +320,12 @@ def handle_qa(user_phone: str, trip_id: str, query: str, base_url: str):
 
     results = collection.query(
         query_texts=[query],
-        n_results=3,
+        n_results=5,  # Get more chunks to find relevant info
         where={"trip_id": trip_id}
     )
 
     num_docs = len(results['documents'][0]) if results['documents'] else 0
     logger.info(f"RAG Search: TripID={trip_id} Query='{query}' Found={num_docs} docs")
-    
-    # DEBUG: Log chunk sizes
-    if results['documents'] and results['documents'][0]:
-        for i, doc in enumerate(results['documents'][0]):
-            logger.info(f"DEBUG Chunk {i}: {len(doc)} chars")
     
     if not results['documents'][0]:
         logger.warning(f"RAG Failed: No documents found for {trip_id}")
@@ -350,20 +334,25 @@ def handle_qa(user_phone: str, trip_id: str, query: str, base_url: str):
 
     context = "\n".join(results['documents'][0])
     
-    # DEBUG: Log total context size
-    logger.info(f"DEBUG Context: {len(context)} total chars from {num_docs} chunks")
+    # Write debug info to file for inspection (accessible at /static/debug/)
+    debug_dir = "static/debug"
+    if not os.path.exists(debug_dir):
+        os.makedirs(debug_dir)
+    
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    debug_file = os.path.join(debug_dir, f"debug_{timestamp}_{trip_id}.txt")
     
     prompt = (
-        f"Você é um guia de viagem amigável e útil para a viagem código {trip_id}. "
-        f"Use SOMENTE o contexto abaixo (que é o roteiro oficial em PDF) para responder. "
-        f"Se a informação não estiver explicita no contexto, DIGA: 'HANDOFF_REQUIRED'. "
-        f"Responda em Português do Brasil, de forma concisa mas completa.\n\n"
+        f"Você é um guia de viagem para a viagem código {trip_id}. "
+        f"RESPONDA APENAS À PERGUNTA ESPECÍFICA do viajante. "
+        f"NÃO mencione informações sobre outros assuntos que não foram perguntados. "
+        f"Se a pergunta é sobre passeios, fale SOMENTE de passeios. Se é sobre restaurantes, fale SOMENTE de restaurantes. "
+        f"Use APENAS as informações do contexto abaixo. "
+        f"Se a informação não estiver no contexto, DIGA: 'HANDOFF_REQUIRED'. "
+        f"Responda em Português do Brasil, de forma completa.\n\n"
         f"Contexto do Roteiro:\n{context}\n\n"
         f"Pergunta do Viajante: {query}"
     )
-    
-    # DEBUG: Log prompt length
-    logger.info(f"DEBUG Prompt: {len(prompt)} chars total")
     
     try:
         # Use REST API directly with v1beta (per Google docs)
@@ -376,9 +365,26 @@ def handle_qa(user_phone: str, trip_id: str, query: str, base_url: str):
         
         reply_text = response.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
         
-        # DEBUG: Log full response
-        logger.info(f"DEBUG Response: {len(reply_text)} chars")
-        logger.info(f"DEBUG Full Response: {reply_text}")
+        # Write debug file with all info
+        with open(debug_file, 'w', encoding='utf-8') as f:
+            f.write(f"=== DEBUG LOG ===\n")
+            f.write(f"Timestamp: {timestamp}\n")
+            f.write(f"Trip ID: {trip_id}\n")
+            f.write(f"User Phone: {user_phone}\n")
+            f.write(f"Query: {query}\n\n")
+            f.write(f"=== CHUNKS FROM CHROMADB ({num_docs} chunks) ===\n")
+            for i, doc in enumerate(results['documents'][0]):
+                f.write(f"\n--- Chunk {i} ({len(doc)} chars) ---\n")
+                f.write(doc)
+                f.write("\n")
+            f.write(f"\n=== TOTAL CONTEXT ({len(context)} chars) ===\n")
+            f.write(context)
+            f.write(f"\n\n=== FULL PROMPT ({len(prompt)} chars) ===\n")
+            f.write(prompt)
+            f.write(f"\n\n=== GEMINI RESPONSE ({len(reply_text)} chars) ===\n")
+            f.write(reply_text)
+        
+        logger.info(f"Debug file written: {debug_file}")
         
         if "HANDOFF_REQUIRED" in reply_text:
             logger.info("LLM triggered Handoff.")
