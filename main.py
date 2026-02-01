@@ -182,10 +182,16 @@ def generate_audio(text: str) -> str:
 
 # --- Ingestion Logic ---
 def process_pdf_upload(file_stream, trip_id):
+    logger.info(f"[STAGE 1: PDF PARSING] Starting for trip {trip_id}")
+    
     reader = PdfReader(file_stream)
     text = ""
-    for page in reader.pages:
-        text += page.extract_text() + "\n"
+    for i, page in enumerate(reader.pages):
+        page_text = page.extract_text() or ""
+        text += page_text + "\n"
+        logger.info(f"[STAGE 1: PDF PARSING] Page {i+1}: {len(page_text)} chars extracted")
+    
+    logger.info(f"[STAGE 1: PDF PARSING] Complete. Total: {len(reader.pages)} pages, {len(text)} chars")
         
     chunk_size = 1000
     overlap = 100
@@ -195,6 +201,8 @@ def process_pdf_upload(file_stream, trip_id):
         end = start + chunk_size
         chunks.append(text[start:end])
         start += chunk_size - overlap
+    
+    logger.info(f"[STAGE 2: CHROMADB INSERT] Creating {len(chunks)} chunks (size={chunk_size}, overlap={overlap})")
         
     ids = [f"{trip_id}_{i}" for i in range(len(chunks))]
     metadatas = [{"source": "upload", "trip_id": trip_id} for _ in chunks]
@@ -205,8 +213,11 @@ def process_pdf_upload(file_stream, trip_id):
         metadatas=metadatas
     )
     
+    logger.info(f"[STAGE 2: CHROMADB INSERT] Complete. {len(chunks)} chunks indexed for trip {trip_id}")
+    
     try:
         chroma_client.persist()
+        logger.info(f"[STAGE 2: CHROMADB INSERT] Database persisted")
     except AttributeError:
         pass 
 
@@ -337,19 +348,27 @@ def handle_qa(user_phone: str, trip_id: str, query: str, base_url: str):
         send_whatsapp_message(user_phone, "O assistente virtual está temporariamente desativado para esta viagem.")
         return
 
+    logger.info(f"[STAGE 3: CHROMADB QUERY] Searching for trip {trip_id}, query: '{query[:50]}...'")
+    query_start = time.time()
+    
     results = collection.query(
         query_texts=[query],
-        n_results=5,  # Get more chunks to find relevant info
+        n_results=5,
         where={"trip_id": trip_id}
     )
 
     num_docs = len(results['documents'][0]) if results['documents'] else 0
-    logger.info(f"RAG Search: TripID={trip_id} Query='{query}' Found={num_docs} docs")
+    query_time = time.time() - query_start
+    logger.info(f"[STAGE 3: CHROMADB QUERY] Found {num_docs} chunks in {query_time:.2f}s")
     
     if not results['documents'][0]:
-        logger.warning(f"RAG Failed: No documents found for {trip_id}")
+        logger.warning(f"[STAGE 3: CHROMADB QUERY] FAILED - No documents for {trip_id}")
         send_handoff_message(user_phone, query)
         return
+
+    # Log each chunk briefly
+    for i, doc in enumerate(results['documents'][0]):
+        logger.info(f"[STAGE 3: CHROMADB QUERY] Chunk {i}: {len(doc)} chars, preview: '{doc[:80]}...'")
 
     context = "\n".join(results['documents'][0])
     
@@ -373,8 +392,10 @@ def handle_qa(user_phone: str, trip_id: str, query: str, base_url: str):
         f"Pergunta do Viajante: {query}"
     )
     
+    logger.info(f"[STAGE 4: GEMINI] Sending prompt ({len(prompt)} chars) to {GEMINI_MODEL}")
+    gemini_start = time.time()
+    
     try:
-        # Use REST API directly with v1beta (per Google docs)
         api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GOOGLE_API_KEY}"
         payload = {
             "contents": [{"parts": [{"text": prompt}]}]
@@ -383,6 +404,10 @@ def handle_qa(user_phone: str, trip_id: str, query: str, base_url: str):
         response.raise_for_status()
         
         reply_text = response.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        gemini_time = time.time() - gemini_start
+        
+        logger.info(f"[STAGE 4: GEMINI] Response received in {gemini_time:.2f}s ({len(reply_text)} chars)")
+        logger.info(f"[STAGE 4: GEMINI] Response preview: '{reply_text[:100]}...'")
         
         # Write debug file with all info
         with open(debug_file, 'w', encoding='utf-8') as f:
@@ -403,7 +428,7 @@ def handle_qa(user_phone: str, trip_id: str, query: str, base_url: str):
             f.write(f"\n\n=== GEMINI RESPONSE ({len(reply_text)} chars) ===\n")
             f.write(reply_text)
         
-        logger.info(f"Debug file written: {debug_file}")
+        logger.info(f"[DEBUG] File written: {debug_file}")
         
         if "HANDOFF_REQUIRED" in reply_text:
             logger.info("LLM triggered Handoff.")
