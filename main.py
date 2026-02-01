@@ -338,6 +338,11 @@ def handle_qa(user_phone: str, trip_id: str, query: str, base_url: str):
     num_docs = len(results['documents'][0]) if results['documents'] else 0
     logger.info(f"RAG Search: TripID={trip_id} Query='{query}' Found={num_docs} docs")
     
+    # DEBUG: Log chunk sizes
+    if results['documents'] and results['documents'][0]:
+        for i, doc in enumerate(results['documents'][0]):
+            logger.info(f"DEBUG Chunk {i}: {len(doc)} chars")
+    
     if not results['documents'][0]:
         logger.warning(f"RAG Failed: No documents found for {trip_id}")
         send_handoff_message(user_phone, query)
@@ -345,14 +350,20 @@ def handle_qa(user_phone: str, trip_id: str, query: str, base_url: str):
 
     context = "\n".join(results['documents'][0])
     
+    # DEBUG: Log total context size
+    logger.info(f"DEBUG Context: {len(context)} total chars from {num_docs} chunks")
+    
     prompt = (
         f"Você é um guia de viagem amigável e útil para a viagem código {trip_id}. "
         f"Use SOMENTE o contexto abaixo (que é o roteiro oficial em PDF) para responder. "
         f"Se a informação não estiver explicita no contexto, DIGA: 'HANDOFF_REQUIRED'. "
-        f"Responda em Português do Brasil. Mantenha a resposta curta (máximo 2-3 frases) pois será falada em áudio.\n\n"
+        f"Responda em Português do Brasil, de forma concisa mas completa.\n\n"
         f"Contexto do Roteiro:\n{context}\n\n"
         f"Pergunta do Viajante: {query}"
     )
+    
+    # DEBUG: Log prompt length
+    logger.info(f"DEBUG Prompt: {len(prompt)} chars total")
     
     try:
         # Use REST API directly with v1beta (per Google docs)
@@ -364,7 +375,10 @@ def handle_qa(user_phone: str, trip_id: str, query: str, base_url: str):
         response.raise_for_status()
         
         reply_text = response.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-        logger.info(f"LLM Response: {reply_text}")
+        
+        # DEBUG: Log full response
+        logger.info(f"DEBUG Response: {len(reply_text)} chars")
+        logger.info(f"DEBUG Full Response: {reply_text}")
         
         if "HANDOFF_REQUIRED" in reply_text:
             logger.info("LLM triggered Handoff.")
