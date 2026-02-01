@@ -640,21 +640,60 @@ def process_webhook_message(data: dict, base_url: str):
         user_trip_id = sessions.get(from_number)
         
         if not user_trip_id:
-            if len(msg_body) < 15 and msg_body.isalnum():
-                trip_code = msg_body.upper()
+            # Handle menu responses (1-4) or trip codes
+            if msg_body in ['1', '2', '3', '4']:
+                handle_menu_response(from_number, msg_body)
+            elif len(msg_body) < 15 and msg_body.replace(" ", "").isalnum():
+                # Validate trip code
+                trip_code = msg_body.upper().strip()
                 trips = load_trips()
                 if trip_code in trips:
                     save_session(from_number, trip_code)
-                    send_whatsapp_message(from_number, f"Bem-vindo! Código {trip_code} registrado. Pode perguntar sobre sua viagem.")
+                    send_whatsapp_message(from_number, f"✅ Código {trip_code} registrado! Pode perguntar sobre sua viagem.")
                 else:
-                    send_whatsapp_message(from_number, f"Código {trip_code} não encontrado. Por favor, verifique ou contate sua agência.")
+                    send_whatsapp_message(from_number, f"❌ Código '{trip_code}' não encontrado. Verifique ou escolha uma opção abaixo.")
+                    send_suggestion_menu(from_number)
             else:
-                send_whatsapp_message(from_number, "Olá! Sou o assistente virtual da sua agência. Por favor, digite o *Código da Viagem* (ex: PARIS24) para começar.")
+                # First contact - send suggestion menu
+                send_suggestion_menu(from_number)
         else:
             handle_qa(from_number, user_trip_id, msg_body, base_url)
                 
     except Exception as e:
         logger.error(f"[WEBHOOK] Background processing error: {e}", exc_info=True)
+
+def send_suggestion_menu(phone: str):
+    """Send formatted text menu with numbered options."""
+    menu = """👋 Olá! Sou o assistente virtual da sua agência de viagens.
+
+Escolha uma opção:
+
+1️⃣ Digitar código da viagem
+2️⃣ Idéias de Viagens 🌍
+3️⃣ Dicas de Milhas ✈️
+4️⃣ Falar com um agente
+
+➡️ Responda com o número da opção (1, 2, 3 ou 4)"""
+    send_whatsapp_message(phone, menu)
+
+def handle_menu_response(phone: str, choice: str):
+    """Handle user's menu choice."""
+    settings = load_settings()
+    links = settings.get("suggestion_links", {})
+    
+    if choice == '1':
+        send_whatsapp_message(phone, "Digite o *Código da Viagem* que você recebeu da agência (ex: PARIS24, LON1):")
+    
+    elif choice == '2':
+        url = links.get("ideias_viagem", "https://gonavigator.com/ideias")
+        send_whatsapp_message(phone, f"🌍 *Idéias de Viagens*\n\nDescubra destinos incríveis para sua próxima aventura!\n\n🔗 {url}")
+    
+    elif choice == '3':
+        url = links.get("miles_tips", "https://gonavigator.com/milhas")
+        send_whatsapp_message(phone, f"✈️ *Dicas de Milhas*\n\nAprenda a economizar e viajar mais usando milhas!\n\n🔗 {url}")
+    
+    elif choice == '4':
+        send_handoff_message(phone, "Solicitação de atendimento humano")
 
 def handle_qa(user_phone: str, trip_id: str, query: str, base_url: str):
     # 1. Check Trip Settings (AI Enabled?)
