@@ -40,9 +40,38 @@ collection = chroma_client.get_or_create_collection(name="trip_knowledge")
 # Simple Session Store
 SESSION_FILE = "trip_sessions.json"
 
-# Message deduplication (prevent WhatsApp retry duplicates)
-processed_messages = {}  # {message_id: timestamp}
+# Message deduplication (file-based for persistence across restarts)
+PROCESSED_MESSAGES_FILE = "processed_messages.json"
 MESSAGE_EXPIRY_SECONDS = 3600  # Keep message IDs for 1 hour
+
+def load_processed_messages() -> dict:
+    """Load processed message IDs from file."""
+    if os.path.exists(PROCESSED_MESSAGES_FILE):
+        try:
+            with open(PROCESSED_MESSAGES_FILE, "r") as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_processed_message(message_id: str, timestamp: float):
+    """Save a processed message ID to file."""
+    messages = load_processed_messages()
+    current_time = time.time()
+    
+    # Clean up expired messages
+    messages = {mid: ts for mid, ts in messages.items() if current_time - ts < MESSAGE_EXPIRY_SECONDS}
+    
+    # Add new message
+    messages[message_id] = timestamp
+    
+    with open(PROCESSED_MESSAGES_FILE, "w") as f:
+        json.dump(messages, f)
+
+def is_duplicate_message(message_id: str) -> bool:
+    """Check if message was already processed."""
+    messages = load_processed_messages()
+    return message_id in messages
 
 def load_sessions() -> Dict[str, str]:
     if os.path.exists(SESSION_FILE):
@@ -299,21 +328,15 @@ async def receive_message(request: Request):
             from_number = message['from']
             msg_body = message.get('text', {}).get('body', '').strip()
             
-            # Deduplicate: skip if already processed
-            current_time = time.time()
-            if message_id in processed_messages:
-                logger.info(f"Skipping duplicate message: {message_id}")
+            # Deduplicate: skip if already processed (file-based, persists across restarts)
+            if is_duplicate_message(message_id):
+                logger.info(f"[DEDUP] Skipping duplicate message: {message_id}")
                 return {"status": "duplicate"}
             
-            # Track this message ID
-            processed_messages[message_id] = current_time
+            # Track this message ID in file
+            save_processed_message(message_id, time.time())
             
-            # Cleanup old message IDs (prevent memory leak)
-            expired = [mid for mid, ts in processed_messages.items() if current_time - ts > MESSAGE_EXPIRY_SECONDS]
-            for mid in expired:
-                del processed_messages[mid]
-            
-            logger.info(f"From {from_number}: {msg_body}")
+            logger.info(f"[WEBHOOK] From {from_number}: {msg_body}")
             
             sessions = load_sessions()
             user_trip_id = sessions.get(from_number)
