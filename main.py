@@ -40,6 +40,10 @@ collection = chroma_client.get_or_create_collection(name="trip_knowledge")
 # Simple Session Store
 SESSION_FILE = "trip_sessions.json"
 
+# Message deduplication (prevent WhatsApp retry duplicates)
+processed_messages = {}  # {message_id: timestamp}
+MESSAGE_EXPIRY_SECONDS = 3600  # Keep message IDs for 1 hour
+
 def load_sessions() -> Dict[str, str]:
     if os.path.exists(SESSION_FILE):
         with open(SESSION_FILE, "r") as f:
@@ -280,8 +284,23 @@ async def receive_message(request: Request):
         
         if 'messages' in value:
             message = value['messages'][0]
+            message_id = message.get('id', '')
             from_number = message['from']
             msg_body = message.get('text', {}).get('body', '').strip()
+            
+            # Deduplicate: skip if already processed
+            current_time = time.time()
+            if message_id in processed_messages:
+                logger.info(f"Skipping duplicate message: {message_id}")
+                return {"status": "duplicate"}
+            
+            # Track this message ID
+            processed_messages[message_id] = current_time
+            
+            # Cleanup old message IDs (prevent memory leak)
+            expired = [mid for mid, ts in processed_messages.items() if current_time - ts > MESSAGE_EXPIRY_SECONDS]
+            for mid in expired:
+                del processed_messages[mid]
             
             logger.info(f"From {from_number}: {msg_body}")
             
