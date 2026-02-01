@@ -315,8 +315,8 @@ def generate_audio(text: str) -> str:
         return None
 
 # --- Ingestion Logic (Memory-Optimized) ---
-CHUNK_SIZE = 1000
-CHUNK_OVERLAP = 100
+CHUNK_SIZE = 2000  # Larger chunks capture more context
+CHUNK_OVERLAP = 200  # More overlap to avoid missing info at boundaries
 BATCH_SIZE = 20  # Insert chunks in batches to reduce memory
 
 def process_pdf_upload(file_stream, trip_id):
@@ -709,7 +709,7 @@ def handle_qa(user_phone: str, trip_id: str, query: str, base_url: str):
     
     results = collection.query(
         query_texts=[query],
-        n_results=5,  # Balance between relevance and coverage
+        n_results=8,  # More chunks for better coverage of specific mentions
         where={"trip_id": trip_id}
     )
 
