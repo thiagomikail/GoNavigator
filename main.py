@@ -592,10 +592,10 @@ async def get_timeline_data(trip_id: str):
         raise HTTPException(status_code=404, detail="Trip not found")
     
     try:
-        # Get all chunks for this trip
+        # Get more chunks for large trip PDFs (150+ pages)
         results = collection.query(
-            query_texts=["roteiro completo programacao atividades destino"],
-            n_results=15,
+            query_texts=["dia roteiro programacao atividades passeio"],
+            n_results=50,
             where={"trip_id": trip_id.upper()}
         )
         
@@ -605,7 +605,7 @@ async def get_timeline_data(trip_id: str):
         context = "\n".join(results['documents'][0])
         
         # Use Gemini to extract structured events with title info
-        prompt = f"""Extraia as informacoes do roteiro abaixo e retorne como JSON.
+        prompt = f"""Extraia TODOS os dias do roteiro abaixo e retorne como JSON.
 
 Formato esperado:
 {{
@@ -617,13 +617,15 @@ Formato esperado:
   ]
 }}
 
-Regras:
-- title: Destino(s) principal(is) em letras maiusculas (ex: "LONDRES", "PARIS E ROMA")
+Regras IMPORTANTES:
+- Extraia TODOS os dias mencionados (pode haver 7, 10, 15 ou mais dias)
+- title: Destino(s) principal(is) em letras maiusculas
 - dates: Data de inicio e fim da viagem
-- events: Lista de dias/atividades em ordem cronologica
+- events: Lista completa de TODOS os dias em ordem cronologica
 - day: Use formato "DAY 1", "DAY 2", etc
 - location: Nome do local/cidade principal do dia
-- description: Breve descricao da atividade (opcional)
+- description: Breve descricao da atividade
+- NAO omita nenhum dia - extraia a lista COMPLETA
 - Responda APENAS com o JSON
 
 Roteiro:

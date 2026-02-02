@@ -5,191 +5,206 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Timeline - {{TRIP_ID}}</title>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=Lato:wght@300;400&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg-dark: #0f0f0f;
+            --bg-card: #1a1a1a;
+            --bg-card-hover: #252525;
+            --accent: #00d4aa;
+            --accent-dim: #00a088;
+            --text-primary: #ffffff;
+            --text-secondary: #888888;
+            --border: #333333;
+        }
+
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
         }
 
-        html {
-            height: auto;
-            overflow: auto;
-        }
-
         body {
-            font-family: 'Lato', sans-serif;
-            background: linear-gradient(180deg, #fdf2f4 0%, #ffffff 100%);
-            background-attachment: fixed;
-            padding: 40px 20px 100px;
-            color: #333;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
             min-height: 100vh;
-            height: auto;
-            overflow-y: auto;
+            padding: 40px 20px;
+            line-height: 1.6;
         }
 
         .container {
-            max-width: 900px;
+            max-width: 1000px;
             margin: 0 auto;
         }
 
         header {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 40px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid var(--border);
         }
 
         header h1 {
-            font-family: 'Playfair Display', serif;
-            font-size: 2.5em;
+            font-size: 2.2em;
             font-weight: 600;
-            color: #2c3e50;
-            letter-spacing: 2px;
-        }
-
-        header .timeline-label {
-            font-family: 'Brush Script MT', cursive;
-            font-size: 1.8em;
-            color: #888;
+            letter-spacing: -0.5px;
+            margin-bottom: 8px;
         }
 
         header .dates {
+            color: var(--accent);
             font-size: 1em;
-            color: #666;
-            margin-top: 8px;
+            font-weight: 400;
         }
 
-        /* Toggle Controls */
         .controls {
-            text-align: center;
-            margin-bottom: 30px;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 40px;
         }
 
         .toggle-btn {
-            background: white;
-            border: 2px solid #ddd;
-            padding: 10px 20px;
-            margin: 0 5px;
-            border-radius: 25px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 12px 24px;
+            border-radius: 8px;
             cursor: pointer;
             font-weight: 500;
-            color: #666;
-            transition: all 0.3s;
+            font-size: 14px;
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
         }
 
         .toggle-btn:hover {
-            border-color: #888;
+            background: var(--bg-card-hover);
+            color: var(--text-primary);
         }
 
         .toggle-btn.active {
-            background: #2c3e50;
-            color: white;
-            border-color: #2c3e50;
+            background: var(--accent);
+            color: var(--bg-dark);
+            border-color: var(--accent);
         }
 
-        /* VERTICAL Timeline */
+        /* VERTICAL TIMELINE */
         .timeline-vertical {
             position: relative;
-            padding: 20px 0;
+            padding-left: 30px;
         }
 
         .timeline-vertical::before {
             content: '';
             position: absolute;
-            left: 50%;
-            transform: translateX(-50%);
+            left: 0;
             top: 0;
             bottom: 0;
             width: 2px;
-            background: #ddd;
+            background: linear-gradient(to bottom, var(--accent), var(--accent-dim), var(--border));
         }
 
-        .timeline-vertical .timeline-item {
-            display: flex;
-            justify-content: flex-end;
-            padding-right: 50%;
+        .timeline-vertical .event {
             position: relative;
-            margin-bottom: 40px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            transition: all 0.2s ease;
         }
 
-        .timeline-vertical .timeline-item:nth-child(even) {
-            justify-content: flex-start;
-            padding-right: 0;
-            padding-left: 50%;
+        .timeline-vertical .event:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--accent);
+            transform: translateX(8px);
         }
 
-        .timeline-vertical .timeline-item::before {
+        .timeline-vertical .event::before {
             content: '';
             position: absolute;
-            left: 50%;
-            top: 20px;
-            transform: translateX(-50%);
-            width: 12px;
-            height: 12px;
-            background: #ccc;
+            left: -34px;
+            top: 28px;
+            width: 10px;
+            height: 10px;
+            background: var(--accent);
             border-radius: 50%;
-            border: 3px solid #fff;
+            box-shadow: 0 0 12px var(--accent);
         }
 
-        .timeline-content {
-            max-width: 320px;
-            padding: 0 25px;
-            text-align: right;
-        }
-
-        .timeline-vertical .timeline-item:nth-child(even) .timeline-content {
-            text-align: left;
-        }
-
-        /* HORIZONTAL Timeline */
+        /* HORIZONTAL TIMELINE */
         .timeline-horizontal {
             display: flex;
             overflow-x: auto;
-            padding: 40px 20px;
-            gap: 30px;
+            padding: 20px 10px 40px;
+            gap: 20px;
             scroll-snap-type: x mandatory;
         }
 
-        .timeline-horizontal .timeline-item {
-            flex: 0 0 280px;
-            background: white;
+        .timeline-horizontal::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .timeline-horizontal::-webkit-scrollbar-track {
+            background: var(--bg-card);
+            border-radius: 4px;
+        }
+
+        .timeline-horizontal::-webkit-scrollbar-thumb {
+            background: var(--accent);
+            border-radius: 4px;
+        }
+
+        .timeline-horizontal .event {
+            flex: 0 0 300px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
             border-radius: 12px;
-            padding: 25px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            padding: 24px;
             scroll-snap-align: start;
-            border-left: 4px solid #2c3e50;
+            transition: all 0.2s ease;
         }
 
-        .timeline-horizontal .timeline-content {
-            text-align: left;
-            max-width: none;
-            padding: 0;
+        .timeline-horizontal .event:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--accent);
         }
 
-        /* Shared Event Styling */
-        .day-label {
-            font-family: 'Playfair Display', serif;
-            font-size: 0.85em;
+        /* Event Styling */
+        .event .day-badge {
+            display: inline-block;
+            background: var(--accent);
+            color: var(--bg-dark);
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 11px;
             font-weight: 600;
-            color: #888;
-            letter-spacing: 2px;
+            letter-spacing: 1px;
             text-transform: uppercase;
-            margin-bottom: 5px;
+            margin-bottom: 12px;
         }
 
-        .location {
-            font-size: 1.15em;
-            color: #2c3e50;
-            font-weight: 400;
-            line-height: 1.4;
+        .event h3 {
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
         }
 
-        .description {
-            font-size: 0.9em;
-            color: #777;
-            margin-top: 8px;
+        .event .location {
+            color: var(--text-secondary);
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+
+        .event .location::before {
+            content: '📍 ';
+        }
+
+        .event .description {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-top: 12px;
             line-height: 1.5;
         }
 
@@ -199,35 +214,33 @@
 
         .loading {
             text-align: center;
-            padding: 60px;
-            color: #888;
+            padding: 80px 20px;
+            color: var(--text-secondary);
         }
 
-        /* Mobile */
+        .loading .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
         @media (max-width: 768px) {
-            .timeline-vertical::before {
-                left: 20px;
-            }
-
-            .timeline-vertical .timeline-item,
-            .timeline-vertical .timeline-item:nth-child(even) {
-                padding-left: 50px;
-                padding-right: 0;
-                justify-content: flex-start;
-            }
-
-            .timeline-vertical .timeline-item::before {
-                left: 20px;
-            }
-
-            .timeline-content,
-            .timeline-vertical .timeline-item:nth-child(even) .timeline-content {
-                text-align: left;
-                max-width: 100%;
-            }
-
             header h1 {
                 font-size: 1.6em;
+            }
+
+            .timeline-horizontal .event {
+                flex: 0 0 260px;
             }
         }
     </style>
@@ -237,7 +250,6 @@
     <div class="container">
         <header>
             <h1 id="trip-title">{{TRIP_ID}}</h1>
-            <div class="timeline-label">Timeline</div>
             <div class="dates" id="trip-dates"></div>
         </header>
 
@@ -246,7 +258,11 @@
             <button class="toggle-btn" id="btn-horizontal" onclick="setLayout('horizontal')">📊 Horizontal</button>
         </div>
 
-        <div id="loading" class="loading">Carregando timeline...</div>
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Carregando timeline...</p>
+        </div>
+
         <div id="timeline-vertical" class="timeline-vertical hidden"></div>
         <div id="timeline-horizontal" class="timeline-horizontal hidden"></div>
     </div>
@@ -268,7 +284,7 @@
                 renderTimeline();
             } catch (e) {
                 console.error(e);
-                document.getElementById('loading').textContent = 'Erro ao carregar timeline';
+                document.getElementById('loading').innerHTML = '<p>Erro ao carregar timeline</p>';
             }
         }
 
@@ -278,12 +294,11 @@
             let html = '';
             events.forEach((e, i) => {
                 html += `
-                    <div class="timeline-item">
-                        <div class="timeline-content">
-                            <div class="day-label">${e.day || `DAY ${i + 1}`}</div>
-                            <div class="location">${e.location || e.title || ''}</div>
-                            ${e.description ? `<div class="description">${e.description}</div>` : ''}
-                        </div>
+                    <div class="event">
+                        <span class="day-badge">${e.day || `Day ${i + 1}`}</span>
+                        <h3>${e.title || e.location || ''}</h3>
+                        ${e.location && e.title ? `<div class="location">${e.location}</div>` : ''}
+                        ${e.description ? `<div class="description">${e.description}</div>` : ''}
                     </div>
                 `;
             });
