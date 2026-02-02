@@ -431,6 +431,7 @@
                     <td><label class="switch"><input type="checkbox" ${t.reminder_enabled ? 'checked' : ''} 
                         onchange="toggleSetting('${tripId}', 'reminder_enabled', this.checked)"><span class="slider"></span></label></td>
                     <td>
+                        <button class="btn btn-sm" onclick="viewTimeline('${tripId}')" style="background:#667eea;">📊 Timeline</button>
                         <button class="btn btn-sm" onclick="appendDoc('${tripId}')">📄 Append</button>
                         <button class="btn btn-danger btn-sm" onclick="deleteTrip('${tripId}')">🗑️</button>
                     </td>
@@ -451,6 +452,10 @@
             if (!confirm(`Delete trip ${tripId}?`)) return;
             await fetch(`/api/trips/${tripId}?admin_key=${ADMIN_KEY}`, { method: "DELETE" });
             fetchTrips();
+        }
+
+        function viewTimeline(tripId) {
+            window.open(`/api/trips/${tripId}/timeline`, '_blank');
         }
 
         function appendDoc(tripId) {

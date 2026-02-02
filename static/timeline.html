@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timeline - {{TRIP_ID}}</title>
+    <style>
+        :root {
+            --primary: #25D366;
+            --dark: #128C7E;
+            --bg: #f0f2f5;
+            --card: #ffffff;
+            --text: #333;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        header p {
+            opacity: 0.9;
+            margin-top: 10px;
+        }
+
+        .controls {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .toggle-btn {
+            background: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: bold;
+            color: var(--dark);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s;
+        }
+
+        .toggle-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .toggle-btn.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* VERTICAL TIMELINE */
+        .timeline-vertical {
+            position: relative;
+            padding-left: 40px;
+        }
+
+        .timeline-vertical::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: linear-gradient(to bottom, var(--primary), var(--dark));
+            border-radius: 2px;
+        }
+
+        .timeline-vertical .event {
+            position: relative;
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s;
+        }
+
+        .timeline-vertical .event:hover {
+            transform: translateX(10px);
+        }
+
+        .timeline-vertical .event::before {
+            content: '';
+            position: absolute;
+            left: -33px;
+            top: 25px;
+            width: 16px;
+            height: 16px;
+            background: var(--primary);
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        /* HORIZONTAL TIMELINE */
+        .timeline-horizontal {
+            display: flex;
+            overflow-x: auto;
+            padding: 40px 20px;
+            gap: 30px;
+            scroll-snap-type: x mandatory;
+        }
+
+        .timeline-horizontal .event {
+            flex: 0 0 280px;
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            scroll-snap-align: start;
+            position: relative;
+        }
+
+        .timeline-horizontal .event::after {
+            content: '→';
+            position: absolute;
+            right: -25px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 24px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .timeline-horizontal .event:last-child::after {
+            display: none;
+        }
+
+        /* Event Styling */
+        .event .day-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--primary), var(--dark));
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .event h3 {
+            color: var(--dark);
+            margin-bottom: 8px;
+        }
+
+        .event .time {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .event .time::before {
+            content: '🕐 ';
+        }
+
+        .event .location {
+            color: #888;
+            font-size: 13px;
+        }
+
+        .event .location::before {
+            content: '📍 ';
+        }
+
+        .event .description {
+            margin-top: 10px;
+            color: #555;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            color: white;
+            padding: 50px;
+        }
+
+        .loading .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .timeline-horizontal .event {
+                flex: 0 0 250px;
+            }
+
+            header h1 {
+                font-size: 1.8em;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>✈️ {{TRIP_ID}}</h1>
+            <p>Seu Roteiro de Viagem</p>
+        </header>
+
+        <div class="controls">
+            <button class="toggle-btn active" id="btn-vertical" onclick="setLayout('vertical')">📋 Vertical</button>
+            <button class="toggle-btn" id="btn-horizontal" onclick="setLayout('horizontal')">📊 Horizontal</button>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Carregando timeline...</p>
+        </div>
+
+        <div id="timeline-vertical" class="timeline-vertical hidden"></div>
+        <div id="timeline-horizontal" class="timeline-horizontal hidden"></div>
+    </div>
+
+    <script>
+        const tripId = "{{TRIP_ID}}";
+        let currentLayout = 'vertical';
+        let events = [];
+
+        async function loadTimeline() {
+            try {
+                const res = await fetch(`/api/trips/${tripId}/timeline/data`);
+                events = await res.json();
+                renderTimeline();
+            } catch (e) {
+                console.error(e);
+                document.getElementById('loading').innerHTML = '<p>Erro ao carregar timeline</p>';
+            }
+        }
+
+        function renderTimeline() {
+            document.getElementById('loading').classList.add('hidden');
+
+            const vContainer = document.getElementById('timeline-vertical');
+            const hContainer = document.getElementById('timeline-horizontal');
+
+            let html = '';
+            events.forEach(e => {
+                html += `
+                    <div class="event">
+                        <span class="day-badge">${e.day || 'Dia'}</span>
+                        <h3>${e.title}</h3>
+                        ${e.time ? `<div class="time">${e.time}</div>` : ''}
+                        ${e.location ? `<div class="location">${e.location}</div>` : ''}
+                        ${e.description ? `<div class="description">${e.description}</div>` : ''}
+                    </div>
+                `;
+            });
+
+            vContainer.innerHTML = html;
+            hContainer.innerHTML = html;
+
+            setLayout(currentLayout);
+        }
+
+        function setLayout(layout) {
+            currentLayout = layout;
+
+            document.getElementById('timeline-vertical').classList.toggle('hidden', layout !== 'vertical');
+            document.getElementById('timeline-horizontal').classList.toggle('hidden', layout !== 'horizontal');
+
+            document.getElementById('btn-vertical').classList.toggle('active', layout === 'vertical');
+            document.getElementById('btn-horizontal').classList.toggle('active', layout === 'horizontal');
+        }
+
+        loadTimeline();
+    </script>
+</body>
+
+</html>

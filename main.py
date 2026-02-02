@@ -561,6 +561,76 @@ async def update_trip_settings(trip_id: str, request: Request, admin_key: str):
     save_trip(trip_id, settings)
     return {"status": "updated", "trip_id": trip_id, "settings": settings}
 
+# Timeline Generator
+@app.get("/api/trips/{trip_id}/timeline")
+async def get_timeline_page(trip_id: str):
+    """Render timeline HTML page for a trip."""
+    trips = load_trips()
+    if trip_id.upper() not in trips:
+        raise HTTPException(status_code=404, detail="Trip not found")
+    
+    # Read and render template
+    with open("static/timeline.html", "r", encoding="utf-8") as f:
+        html = f.read()
+    
+    html = html.replace("{{TRIP_ID}}", trip_id.upper())
+    return PlainTextResponse(content=html, media_type="text/html")
+
+@app.get("/api/trips/{trip_id}/timeline/data")
+async def get_timeline_data(trip_id: str):
+    """Extract and return timeline events as JSON."""
+    trips = load_trips()
+    if trip_id.upper() not in trips:
+        raise HTTPException(status_code=404, detail="Trip not found")
+    
+    try:
+        # Get all chunks for this trip
+        results = collection.query(
+            query_texts=["roteiro completo programacao atividades"],
+            n_results=15,
+            where={"trip_id": trip_id.upper()}
+        )
+        
+        if not results['documents'][0]:
+            return []
+        
+        context = "\n".join(results['documents'][0])
+        
+        # Use Gemini to extract structured events
+        prompt = f"""Extraia os eventos/atividades do roteiro abaixo e retorne como JSON.
+
+Formato esperado (array de objetos):
+[
+  {{"day": "Dia 1 - 15/03", "title": "Chegada em Londres", "time": "14:00", "location": "Aeroporto Heathrow", "description": "Transfer para hotel"}},
+  ...
+]
+
+Regras:
+- Extraia TODOS os dias e atividades mencionados
+- Mantenha a ordem cronológica
+- Se não houver horário, omita o campo "time"
+- Responda APENAS com o JSON, sem texto adicional
+
+Roteiro:
+{context}
+
+JSON:"""
+        
+        response_text = call_gemini_with_retry(prompt)
+        
+        # Parse JSON from response
+        import re
+        json_match = re.search(r'\[[\s\S]*\]', response_text)
+        if json_match:
+            events = json.loads(json_match.group())
+            return events
+        
+        return []
+        
+    except Exception as e:
+        logger.error(f"Timeline generation error: {e}")
+        return []
+
 @app.post("/api/trips/{trip_id}/append")
 async def append_trip_document(
     trip_id: str,
