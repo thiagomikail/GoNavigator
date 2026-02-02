@@ -15,11 +15,16 @@
             padding: 0;
         }
 
+        html,
+        body {
+            min-height: 100%;
+            overflow-x: hidden;
+        }
+
         body {
             font-family: 'Lato', sans-serif;
             background: linear-gradient(180deg, #fdf2f4 0%, #ffffff 100%);
-            min-height: 100vh;
-            padding: 40px 20px;
+            padding: 40px 20px 100px;
             color: #333;
         }
 
@@ -30,39 +35,64 @@
 
         header {
             text-align: center;
-            margin-bottom: 50px;
+            margin-bottom: 30px;
         }
 
         header h1 {
             font-family: 'Playfair Display', serif;
-            font-size: 2.8em;
+            font-size: 2.5em;
             font-weight: 600;
             color: #2c3e50;
-            letter-spacing: 3px;
-            margin-bottom: 10px;
+            letter-spacing: 2px;
         }
 
         header .timeline-label {
             font-family: 'Brush Script MT', cursive;
-            font-size: 2em;
+            font-size: 1.8em;
             color: #888;
-            font-style: italic;
         }
 
         header .dates {
-            font-size: 1.1em;
+            font-size: 1em;
             color: #666;
-            margin-top: 10px;
-            letter-spacing: 1px;
+            margin-top: 8px;
         }
 
-        /* Classic Timeline */
-        .timeline {
+        /* Toggle Controls */
+        .controls {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .toggle-btn {
+            background: white;
+            border: 2px solid #ddd;
+            padding: 10px 20px;
+            margin: 0 5px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.3s;
+        }
+
+        .toggle-btn:hover {
+            border-color: #888;
+        }
+
+        .toggle-btn.active {
+            background: #2c3e50;
+            color: white;
+            border-color: #2c3e50;
+        }
+
+        /* VERTICAL Timeline */
+        .timeline-vertical {
             position: relative;
             padding: 20px 0;
         }
 
-        .timeline::before {
+        .timeline-vertical::before {
             content: '';
             position: absolute;
             left: 50%;
@@ -73,87 +103,97 @@
             background: #ddd;
         }
 
-        .timeline-item {
+        .timeline-vertical .timeline-item {
             display: flex;
             justify-content: flex-end;
             padding-right: 50%;
             position: relative;
-            margin-bottom: 50px;
+            margin-bottom: 40px;
         }
 
-        .timeline-item:nth-child(even) {
+        .timeline-vertical .timeline-item:nth-child(even) {
             justify-content: flex-start;
             padding-right: 0;
             padding-left: 50%;
         }
 
-        .timeline-item::before {
+        .timeline-vertical .timeline-item::before {
             content: '';
             position: absolute;
             left: 50%;
-            top: 30px;
+            top: 20px;
             transform: translateX(-50%);
             width: 12px;
             height: 12px;
-            background: #ddd;
+            background: #ccc;
             border-radius: 50%;
             border: 3px solid #fff;
-            box-shadow: 0 0 0 2px #ddd;
         }
 
         .timeline-content {
             max-width: 320px;
-            padding: 0 30px;
+            padding: 0 25px;
             text-align: right;
         }
 
-        .timeline-item:nth-child(even) .timeline-content {
+        .timeline-vertical .timeline-item:nth-child(even) .timeline-content {
             text-align: left;
         }
 
+        /* HORIZONTAL Timeline */
+        .timeline-horizontal {
+            display: flex;
+            overflow-x: auto;
+            padding: 40px 20px;
+            gap: 30px;
+            scroll-snap-type: x mandatory;
+        }
+
+        .timeline-horizontal .timeline-item {
+            flex: 0 0 280px;
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            scroll-snap-align: start;
+            border-left: 4px solid #2c3e50;
+        }
+
+        .timeline-horizontal .timeline-content {
+            text-align: left;
+            max-width: none;
+            padding: 0;
+        }
+
+        /* Shared Event Styling */
         .day-label {
             font-family: 'Playfair Display', serif;
-            font-size: 0.9em;
+            font-size: 0.85em;
             font-weight: 600;
-            color: #666;
+            color: #888;
             letter-spacing: 2px;
             text-transform: uppercase;
             margin-bottom: 5px;
         }
 
         .location {
-            font-family: 'Lato', sans-serif;
-            font-size: 1.1em;
-            color: #444;
-            font-weight: 300;
+            font-size: 1.15em;
+            color: #2c3e50;
+            font-weight: 400;
             line-height: 1.4;
-        }
-
-        .timeline-image {
-            width: 100px;
-            height: 100px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 3px solid #fff;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            position: absolute;
-            right: calc(50% + 40px);
-            top: 0;
-        }
-
-        .timeline-item:nth-child(even) .timeline-image {
-            right: auto;
-            left: calc(50% + 40px);
         }
 
         .description {
             font-size: 0.9em;
-            color: #888;
+            color: #777;
             margin-top: 8px;
-            font-weight: 300;
+            line-height: 1.5;
         }
 
-        /* Loading */
+        .hidden {
+            display: none;
+        }
+
         .loading {
             text-align: center;
             padding: 60px;
@@ -162,34 +202,29 @@
 
         /* Mobile */
         @media (max-width: 768px) {
-            .timeline::before {
-                left: 30px;
+            .timeline-vertical::before {
+                left: 20px;
             }
 
-            .timeline-item,
-            .timeline-item:nth-child(even) {
-                padding-left: 80px;
+            .timeline-vertical .timeline-item,
+            .timeline-vertical .timeline-item:nth-child(even) {
+                padding-left: 50px;
                 padding-right: 0;
                 justify-content: flex-start;
             }
 
-            .timeline-item::before {
-                left: 30px;
+            .timeline-vertical .timeline-item::before {
+                left: 20px;
             }
 
             .timeline-content,
-            .timeline-item:nth-child(even) .timeline-content {
+            .timeline-vertical .timeline-item:nth-child(even) .timeline-content {
                 text-align: left;
                 max-width: 100%;
             }
 
-            .timeline-image,
-            .timeline-item:nth-child(even) .timeline-image {
-                display: none;
-            }
-
             header h1 {
-                font-size: 1.8em;
+                font-size: 1.6em;
             }
         }
     </style>
@@ -198,42 +233,44 @@
 <body>
     <div class="container">
         <header>
-            <h1 id="trip-title">{{TRIP_TITLE}}</h1>
+            <h1 id="trip-title">{{TRIP_ID}}</h1>
             <div class="timeline-label">Timeline</div>
             <div class="dates" id="trip-dates"></div>
         </header>
 
+        <div class="controls">
+            <button class="toggle-btn active" id="btn-vertical" onclick="setLayout('vertical')">📋 Vertical</button>
+            <button class="toggle-btn" id="btn-horizontal" onclick="setLayout('horizontal')">📊 Horizontal</button>
+        </div>
+
         <div id="loading" class="loading">Carregando timeline...</div>
-        <div id="timeline" class="timeline" style="display:none;"></div>
+        <div id="timeline-vertical" class="timeline-vertical hidden"></div>
+        <div id="timeline-horizontal" class="timeline-horizontal hidden"></div>
     </div>
 
     <script>
         const tripId = "{{TRIP_ID}}";
+        let currentLayout = 'vertical';
+        let events = [];
 
         async function loadTimeline() {
             try {
                 const res = await fetch(`/api/trips/${tripId}/timeline/data`);
                 const data = await res.json();
 
-                // Set header info
-                if (data.title) {
-                    document.getElementById('trip-title').textContent = data.title;
-                }
-                if (data.dates) {
-                    document.getElementById('trip-dates').textContent = data.dates;
-                }
+                if (data.title) document.getElementById('trip-title').textContent = data.title;
+                if (data.dates) document.getElementById('trip-dates').textContent = data.dates;
 
-                renderTimeline(data.events || []);
+                events = data.events || [];
+                renderTimeline();
             } catch (e) {
                 console.error(e);
                 document.getElementById('loading').textContent = 'Erro ao carregar timeline';
             }
         }
 
-        function renderTimeline(events) {
-            document.getElementById('loading').style.display = 'none';
-            const container = document.getElementById('timeline');
-            container.style.display = 'block';
+        function renderTimeline() {
+            document.getElementById('loading').classList.add('hidden');
 
             let html = '';
             events.forEach((e, i) => {
@@ -241,14 +278,25 @@
                     <div class="timeline-item">
                         <div class="timeline-content">
                             <div class="day-label">${e.day || `DAY ${i + 1}`}</div>
-                            <div class="location">${e.location || e.title}</div>
+                            <div class="location">${e.location || e.title || ''}</div>
                             ${e.description ? `<div class="description">${e.description}</div>` : ''}
                         </div>
                     </div>
                 `;
             });
 
-            container.innerHTML = html;
+            document.getElementById('timeline-vertical').innerHTML = html;
+            document.getElementById('timeline-horizontal').innerHTML = html;
+
+            setLayout(currentLayout);
+        }
+
+        function setLayout(layout) {
+            currentLayout = layout;
+            document.getElementById('timeline-vertical').classList.toggle('hidden', layout !== 'vertical');
+            document.getElementById('timeline-horizontal').classList.toggle('hidden', layout !== 'horizontal');
+            document.getElementById('btn-vertical').classList.toggle('active', layout === 'vertical');
+            document.getElementById('btn-horizontal').classList.toggle('active', layout === 'horizontal');
         }
 
         loadTimeline();

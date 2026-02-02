@@ -36,20 +36,28 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 GEMINI_MODEL = "gemini-2.5-flash-lite"
 GEMINI_TTS_MODEL = "gemini-2.5-flash-preview-tts"  # TTS-specific model
 
-# Database Setup (Use ChromaDB's default local embeddings for reliability)
+# Persistent Data Directory (for Render disk or local storage)
+# Set DATA_DIR env var to a Render persistent disk path (e.g., /var/data)
+DATA_DIR = os.getenv("DATA_DIR", ".")
+if not os.path.exists(DATA_DIR):
+    os.makedirs(DATA_DIR)
+logger.info(f"[STARTUP] Data directory: {DATA_DIR}")
+
+# Database Setup with persistent path
+CHROMA_DB_PATH = os.path.join(DATA_DIR, "chroma_db")
 try:
-    chroma_client = chromadb.PersistentClient(path="./chroma_db")
+    chroma_client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
 except AttributeError:
     from chromadb.config import Settings
-    chroma_client = chromadb.Client(Settings(chroma_db_impl="duckdb+parquet", persist_directory="./chroma_db"))
+    chroma_client = chromadb.Client(Settings(chroma_db_impl="duckdb+parquet", persist_directory=CHROMA_DB_PATH))
 
 collection = chroma_client.get_or_create_collection(name="trip_knowledge")
 
-# Simple Session Store
-SESSION_FILE = "trip_sessions.json"
+# Simple Session Store (persistent path)
+SESSION_FILE = os.path.join(DATA_DIR, "trip_sessions.json")
 
 # Message deduplication (file-based for persistence across restarts)
-PROCESSED_MESSAGES_FILE = "processed_messages.json"
+PROCESSED_MESSAGES_FILE = os.path.join(DATA_DIR, "processed_messages.json")
 MESSAGE_EXPIRY_SECONDS = 3600  # Keep message IDs for 1 hour
 
 def load_processed_messages() -> dict:
@@ -135,7 +143,7 @@ def is_superuser(auth_result: Dict) -> bool:
     return auth_result and auth_result.get("role") == "superuser"
 
 # --- Settings Management ---
-SETTINGS_FILE = "settings.json"
+SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
 
 def load_settings() -> Dict:
     if os.path.exists(SETTINGS_FILE):
@@ -197,7 +205,7 @@ def call_gemini_with_retry(prompt: str, max_retries: int = LLM_MAX_RETRIES) -> s
     raise Exception("Gemini API failed after max retries")
 
 # --- Trip Management ---
-TRIPS_FILE = "trips.json"
+TRIPS_FILE = os.path.join(DATA_DIR, "trips.json")
 
 def load_trips() -> Dict[str, Dict]:
     if os.path.exists(TRIPS_FILE):
