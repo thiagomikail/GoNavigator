@@ -41,7 +41,7 @@ GEMINI_TTS_MODEL = "gemini-2.5-flash-preview-tts"  # TTS-specific model
 DATA_DIR = os.getenv("DATA_DIR", ".")
 if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR)
-logger.info(f"[STARTUP] Data directory: {DATA_DIR}")
+print(f"[STARTUP] Data directory: {DATA_DIR}")
 
 # Database Setup with persistent path
 CHROMA_DB_PATH = os.path.join(DATA_DIR, "chroma_db")
