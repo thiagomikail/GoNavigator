@@ -15,17 +15,20 @@
             padding: 0;
         }
 
-        html,
-        body {
-            min-height: 100%;
-            overflow-x: hidden;
+        html {
+            height: auto;
+            overflow: auto;
         }
 
         body {
             font-family: 'Lato', sans-serif;
             background: linear-gradient(180deg, #fdf2f4 0%, #ffffff 100%);
+            background-attachment: fixed;
             padding: 40px 20px 100px;
             color: #333;
+            min-height: 100vh;
+            height: auto;
+            overflow-y: auto;
         }
 
         .container {
