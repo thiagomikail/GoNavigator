@@ -578,7 +578,7 @@ async def get_timeline_page(trip_id: str):
 
 @app.get("/api/trips/{trip_id}/timeline/data")
 async def get_timeline_data(trip_id: str):
-    """Extract and return timeline events as JSON."""
+    """Extract and return timeline events as JSON with title and dates."""
     trips = load_trips()
     if trip_id.upper() not in trips:
         raise HTTPException(status_code=404, detail="Trip not found")
@@ -586,30 +586,37 @@ async def get_timeline_data(trip_id: str):
     try:
         # Get all chunks for this trip
         results = collection.query(
-            query_texts=["roteiro completo programacao atividades"],
+            query_texts=["roteiro completo programacao atividades destino"],
             n_results=15,
             where={"trip_id": trip_id.upper()}
         )
         
         if not results['documents'][0]:
-            return []
+            return {"title": trip_id.upper(), "dates": "", "events": []}
         
         context = "\n".join(results['documents'][0])
         
-        # Use Gemini to extract structured events
-        prompt = f"""Extraia os eventos/atividades do roteiro abaixo e retorne como JSON.
+        # Use Gemini to extract structured events with title info
+        prompt = f"""Extraia as informacoes do roteiro abaixo e retorne como JSON.
 
-Formato esperado (array de objetos):
-[
-  {{"day": "Dia 1 - 15/03", "title": "Chegada em Londres", "time": "14:00", "location": "Aeroporto Heathrow", "description": "Transfer para hotel"}},
-  ...
-]
+Formato esperado:
+{{
+  "title": "DESTINOS DA VIAGEM",
+  "dates": "DD/MM/YYYY - DD/MM/YYYY",
+  "events": [
+    {{"day": "DAY 1", "location": "Nome do Local", "description": "Breve descricao"}},
+    ...
+  ]
+}}
 
 Regras:
-- Extraia TODOS os dias e atividades mencionados
-- Mantenha a ordem cronológica
-- Se não houver horário, omita o campo "time"
-- Responda APENAS com o JSON, sem texto adicional
+- title: Destino(s) principal(is) em letras maiusculas (ex: "LONDRES", "PARIS E ROMA")
+- dates: Data de inicio e fim da viagem
+- events: Lista de dias/atividades em ordem cronologica
+- day: Use formato "DAY 1", "DAY 2", etc
+- location: Nome do local/cidade principal do dia
+- description: Breve descricao da atividade (opcional)
+- Responda APENAS com o JSON
 
 Roteiro:
 {context}
@@ -620,16 +627,16 @@ JSON:"""
         
         # Parse JSON from response
         import re
-        json_match = re.search(r'\[[\s\S]*\]', response_text)
+        json_match = re.search(r'\{[\s\S]*\}', response_text)
         if json_match:
-            events = json.loads(json_match.group())
-            return events
+            data = json.loads(json_match.group())
+            return data
         
-        return []
+        return {"title": trip_id.upper(), "dates": "", "events": []}
         
     except Exception as e:
         logger.error(f"Timeline generation error: {e}")
-        return []
+        return {"title": trip_id.upper(), "dates": "", "events": []}
 
 @app.post("/api/trips/{trip_id}/append")
 async def append_trip_document(
