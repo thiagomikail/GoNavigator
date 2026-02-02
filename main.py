@@ -6,6 +6,8 @@ import time
 import random
 import gc
 from typing import Dict
+from datetime import datetime, timedelta
+from contextlib import asynccontextmanager
 
 import requests
 import uvicorn
@@ -18,6 +20,10 @@ import base64
 import chromadb
 from pypdf import PdfReader
 from io import BytesIO
+
+# APScheduler for scheduled reminders
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 # Load environment variables
 load_dotenv()
@@ -849,6 +855,105 @@ def send_whatsapp_audio(to_number: str, audio_url: str):
         logger.info(f"Audio sent status: {r.status_code} {r.text}")
     except Exception as e:
         logger.error(f"Failed to send audio: {e}")
+
+# --- Scheduled Reminders ---
+scheduler = BackgroundScheduler()
+
+def send_scheduled_reminders():
+    """Send 12-hour schedule reminders to all active trip users."""
+    logger.info("[SCHEDULER] Running scheduled reminder job...")
+    
+    try:
+        trips = load_trips()
+        sessions = load_sessions()
+        
+        today = datetime.now().strftime("%d/%m/%Y")
+        
+        for trip_id, trip_config in trips.items():
+            if not trip_config.get("reminder_enabled", False):
+                continue
+            
+            trip_users = [phone for phone, tid in sessions.items() if tid == trip_id]
+            
+            if not trip_users:
+                continue
+            
+            logger.info(f"[SCHEDULER] Sending reminder for {trip_id} to {len(trip_users)} users")
+            
+            schedule_text = generate_trip_schedule(trip_id, today)
+            
+            if schedule_text:
+                for phone in trip_users:
+                    send_whatsapp_message(phone, schedule_text)
+                    
+    except Exception as e:
+        logger.error(f"[SCHEDULER] Reminder job error: {e}", exc_info=True)
+
+def generate_trip_schedule(trip_id: str, date: str) -> str:
+    """Generate a 12-hour schedule summary using RAG."""
+    try:
+        results = collection.query(
+            query_texts=[f"programacao agenda atividades do dia {date}"],
+            n_results=5,
+            where={"trip_id": trip_id}
+        )
+        
+        if not results['documents'][0]:
+            return None
+        
+        context = "\n".join(results['documents'][0])
+        
+        prompt = f"""Com base no roteiro, crie um resumo das atividades de hoje para o viajante.
+
+Data: {date}
+
+Formato:
+📅 *Programacao de Hoje*
+
+🕐 [horario] - [atividade]
+...
+
+Roteiro:
+{context}
+
+Resumo:"""
+        
+        return call_gemini_with_retry(prompt)
+        
+    except Exception as e:
+        logger.error(f"[SCHEDULER] Schedule generation error: {e}")
+        return None
+
+def init_scheduler():
+    """Initialize the reminder scheduler."""
+    settings = load_settings()
+    reminder_config = settings.get("reminder_defaults", {})
+    reminder_times = reminder_config.get("times", ["08:00", "20:00"])
+    
+    scheduler.remove_all_jobs()
+    
+    for time_str in reminder_times:
+        try:
+            hour, minute = map(int, time_str.split(":"))
+            trigger = CronTrigger(hour=hour, minute=minute, timezone="America/Sao_Paulo")
+            scheduler.add_job(send_scheduled_reminders, trigger, id=f"reminder_{time_str}")
+            logger.info(f"[SCHEDULER] Added reminder job at {time_str}")
+        except Exception as e:
+            logger.error(f"[SCHEDULER] Failed to add job for {time_str}: {e}")
+    
+    if not scheduler.running:
+        scheduler.start()
+        logger.info("[SCHEDULER] Started background scheduler")
+
+@app.on_event("startup")
+async def startup_event():
+    init_scheduler()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    if scheduler.running:
+        scheduler.shutdown(wait=False)
+        logger.info("[SCHEDULER] Shutdown")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
